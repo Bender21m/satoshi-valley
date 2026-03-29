@@ -1031,9 +1031,9 @@ let dlgCharTimer = 0;
 const DLG_CHAR_SPEED = 0.03; // seconds per character
 let invOpen = false;
 const notifs = [];
-function notify(text,dur=2.5,big=false){notifs.push({text,t:dur,big});}
+function notify(text,dur=2.5,big=false){if(notifs.length<20)notifs.push({text,t:dur,big});}
 const particles = [];
-function satPart(x,y,n){particles.push({x:x*SCALE,y:y*SCALE,text:'+'+fmt(n)+' ₿',life:2,vy:-25,size:n>100?16:13});}
+function satPart(x,y,n){if(particles.length<150)particles.push({x:x*SCALE,y:y*SCALE,text:'+'+fmt(n)+' ₿',life:2,vy:-25,size:n>100?16:13});}
 
 // ============================================================
 // ECONOMY & TIME
@@ -1660,6 +1660,7 @@ function update(dt) {
       else if (ptx>=homeX+12 && ptx<homeX+20 && pty>=homeY-10 && pty<homeY-4) buildingType='hall';
 
       if (buildingType && INTERIOR_MAPS[buildingType]) {
+        mouseTarget = null; clickIndicator = null; // Clear mouse state when entering
         const returnX = player.x, returnY = player.y + TILE * 3; // well outside building
         startTransition('fadeOut', 0.4, () => {
           const im = INTERIOR_MAPS[buildingType];
@@ -1970,7 +1971,7 @@ function update(dt) {
   // Weather particles
   if (weather.current === 'rain' || weather.current === 'storm') {
     const rate = weather.current === 'storm' ? 8 : 4;
-    for (let i = 0; i < rate; i++) {
+    for (let i = 0; i < rate && weather.particles.length < 500; i++) {
       weather.particles.push({
         x: Math.random() * canvas.width,
         y: -10,
@@ -1997,21 +1998,21 @@ function update(dt) {
   if (!isNight && weather.current !== 'storm' && ambient.length < 30 && Math.random() < 0.02) {
     const bx = (player.x + (Math.random()-0.5)*600) * SCALE - cam.x;
     const by = (player.y + (Math.random()-0.5)*400) * SCALE - cam.y;
-    ambient.push({x:bx,y:by,type:'butterfly',vx:(Math.random()-0.5)*30,vy:Math.sin(Math.random()*6)*15,life:8+Math.random()*10,maxLife:18,size:3,color:['#E8C840','#E870B0','#7070E0','#FF6644','#70D0A0'][Math.floor(Math.random()*5)],phase:Math.random()*6});
+    if(ambient.length<100) ambient.push({x:bx,y:by,type:'butterfly',vx:(Math.random()-0.5)*30,vy:Math.sin(Math.random()*6)*15,life:8+Math.random()*10,maxLife:18,size:3,color:['#E8C840','#E870B0','#7070E0','#FF6644','#70D0A0'][Math.floor(Math.random()*5)],phase:Math.random()*6});
   }
   // Fireflies (night)
   if (isNight && ambient.length < 40 && Math.random() < 0.03) {
     const fx = (player.x + (Math.random()-0.5)*500) * SCALE - cam.x;
     const fy = (player.y + (Math.random()-0.5)*300) * SCALE - cam.y;
-    ambient.push({x:fx,y:fy,type:'firefly',vx:(Math.random()-0.5)*15,vy:(Math.random()-0.5)*15,life:5+Math.random()*8,maxLife:13,size:2,color:'#CCFF66',phase:Math.random()*6});
+    if(ambient.length<100) ambient.push({x:fx,y:fy,type:'firefly',vx:(Math.random()-0.5)*15,vy:(Math.random()-0.5)*15,life:5+Math.random()*8,maxLife:13,size:2,color:'#CCFF66',phase:Math.random()*6});
   }
   // Dust motes (when player runs, daytime)
   if (player.moving && !isNight && Math.random() < 0.15) {
-    ambient.push({x:player.x*SCALE-cam.x+(Math.random()-0.5)*10,y:player.y*SCALE-cam.y+15,type:'dust',vx:(Math.random()-0.5)*20+weather.windX*10,vy:-10-Math.random()*15,life:0.8+Math.random()*0.5,maxLife:1.3,size:2,color:'#B0A080'});
+    if(ambient.length<100) ambient.push({x:player.x*SCALE-cam.x+(Math.random()-0.5)*10,y:player.y*SCALE-cam.y+15,type:'dust',vx:(Math.random()-0.5)*20+weather.windX*10,vy:-10-Math.random()*15,life:0.8+Math.random()*0.5,maxLife:1.3,size:2,color:'#B0A080'});
   }
   // Leaves (windy/storm)
   if ((weather.current === 'storm' || weather.windX > 0.5) && ambient.length < 20 && Math.random() < 0.01) {
-    ambient.push({x:-20,y:Math.random()*canvas.height,type:'leaf',vx:60+Math.random()*40,vy:20+Math.random()*30,life:6+Math.random()*4,maxLife:10,size:4,color:['#8A6A20','#AA8830','#6A8A20','#CC8833'][Math.floor(Math.random()*4)],phase:Math.random()*6});
+    if(ambient.length<100) ambient.push({x:-20,y:Math.random()*canvas.height,type:'leaf',vx:60+Math.random()*40,vy:20+Math.random()*30,life:6+Math.random()*4,maxLife:10,size:4,color:['#8A6A20','#AA8830','#6A8A20','#CC8833'][Math.floor(Math.random()*4)],phase:Math.random()*6});
   }
   // Update ambient
   for (let i = ambient.length - 1; i >= 0; i--) {
@@ -3363,7 +3364,7 @@ function drawHUD(){
     ctx.font=`bold ${n.big?18:14}px ${FONT}`;ctx.fillText(n.text,canvas.width/2,hbY-30-i*24);}
   
   // Click-to-move indicator
-  if(clickIndicator){
+  if(clickIndicator && !interior){
     const ci=clickIndicator,sx=ci.x*SCALE-cam.x,sy=ci.y*SCALE-cam.y;
     const a=ci.life;
     ctx.strokeStyle=`rgba(247,147,26,${a})`;ctx.lineWidth=2;
