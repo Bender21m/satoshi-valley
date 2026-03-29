@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Satoshi Valley — Prototype</title>
+<title>Satoshi Valley</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { 
@@ -18,27 +18,23 @@ body {
   overflow: hidden;
 }
 canvas { 
-  border: 2px solid #F7931A; 
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+  display: block;
 }
 #info {
-  margin-top: 12px;
-  font-size: 12px;
-  color: #888;
+  position: fixed;
+  bottom: 8px;
+  font-size: 11px;
+  color: #555;
   text-align: center;
-}
-#title {
-  margin-bottom: 12px;
-  font-size: 18px;
-  letter-spacing: 2px;
+  pointer-events: none;
 }
 </style>
 </head>
 <body>
-<div id="title">⛏️ SATOSHI VALLEY — PROTOTYPE</div>
-<canvas id="game" width="640" height="480"></canvas>
-<div id="info">WASD/Arrows: Move | R: Place Rig (500 sats) | E: Toggle Rig Power | Space: Speed Up Time</div>
+<canvas id="game"></canvas>
+<div id="info">WASD: Move | R: Place Rig | E: Interact | Space: Fast Forward | F: Fullscreen</div>
 <script src="game.js"></script>
 </body>
 </html>
