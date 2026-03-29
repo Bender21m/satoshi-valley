@@ -558,3 +558,25 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 *Built with ₿ love by the Satoshi Valley team*
 *Next up: Phase 1, Sprint 9 — Controls & Input Overhaul*
 *Last updated: 2026-03-29*
+
+---
+
+## 🐛 Known Bugs & Issues (Audit: 2026-03-29)
+
+### Critical
+*None found — game is stable and playable*
+
+### Major (Gameplay-affecting)
+- **#25** Click-to-move indicator uses overworld coords inside building interiors
+- Tutorial direction references ("walk WEST to shed") may be slightly off after layout changes
+
+### Minor
+- **#26** Particle arrays (weather, notifs, ambient) not capped — potential lag in very long sessions
+- **#27** Map bounds not re-checked in homestead clearing loop (safe with current constants)
+
+### Architecture Notes
+- `game.js` is ~3,900 lines in a single file — natural module boundaries exist at: map gen, entities, UI/HUD, interiors, economy, save/load
+- 32 items, 8 NPCs, 4 animal types, 5 building types, 24 seed words — all data-driven, could be extracted to JSON
+- Global state variables (~40+) could benefit from encapsulation into game state object
+- Event system is inline — pub/sub pattern would help as features grow
+
