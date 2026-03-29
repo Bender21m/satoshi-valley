@@ -246,7 +246,7 @@ function getSelected(){return(selSlot>=0&&selSlot<inv.length&&inv[selSlot])?inv[
 // ============================================================
 // POWER
 // ============================================================
-const pwr = {gen:0,use:0,stored:0,maxStore:0,panels:[],batts:[],gridCost:10};
+const pwr = {gen:0,use:0,stored:0,maxStore:0,panels:[],batts:[],gridCost:1,gridAcc:0};
 function updatePower(dt) {
   const h = getHour();
   const sun = (h>=6&&h<=20)?Math.sin((h-6)/14*Math.PI):0;
@@ -258,7 +258,16 @@ function updatePower(dt) {
   if (surplus > 0) pwr.stored = Math.min(pwr.maxStore, pwr.stored + surplus*dt*.1);
   else if (surplus < 0) {
     if (pwr.stored > 0) pwr.stored = Math.max(0, pwr.stored + surplus*dt*.1);
-    else player.wallet = Math.max(0, player.wallet - Math.ceil(-surplus*pwr.gridCost*dt*.01));
+    else {
+      // Grid power costs sats but only deducts every few seconds, not every frame
+      pwr.gridAcc += -surplus * dt;
+      if (pwr.gridAcc >= 5) { // Only charge when 5+ kWh accumulated
+        const cost = Math.ceil(pwr.gridAcc * pwr.gridCost * 0.1);
+        player.wallet = Math.max(0, player.wallet - cost);
+        pwr.gridAcc = 0;
+        if (cost > 0) notify(`⚡ Grid power: -${cost} sats`, 1.5);
+      }
+    }
   }
 }
 
@@ -581,6 +590,13 @@ const npcs = [
 // SHOP
 // ============================================================
 const SHOP_LIST = ['wrench','pickaxe','cpu_miner','gpu_rig','asic_s21','solar_panel','battery','cooling_fan','bread','coffee','potato_seed','tomato_seed','corn_seed'];
+
+// Map item IDs to sprite cache names
+const ITEM_SPRITES = {
+  wrench: 'item_wrench', pickaxe: 'item_pickaxe',
+  cpu_miner: 'item_cpu', gpu_rig: 'item_gpu', asic_s21: 'item_asic',
+  solar_panel: 'item_solar', battery: 'item_battery', cooling_fan: 'item_fan',
+};
 let shopOpen=false, shopCur=0, shopMode='buy';
 
 // ============================================================
@@ -852,6 +868,7 @@ function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!
 // ============================================================
 // INIT
 // ============================================================
+initSprites();
 generateMap();
 // Starter rigs in the mining shed — already mining!
 const rig1 = new Rig((homeX-12)*TILE+8, (homeY)*TILE+8, 0);
@@ -1606,7 +1623,10 @@ function drawHUD(){
     ctx.fillStyle=i===selSlot?'rgba(247,147,26,.25)':'rgba(20,20,25,.8)';ctx.fillRect(x,hbY,hbW,hbH);
     ctx.strokeStyle=i===selSlot?C.hud:'#333';ctx.lineWidth=i===selSlot?2:1;ctx.strokeRect(x,hbY,hbW,hbH);
     ctx.fillStyle='#444';ctx.font=`11px ${FONT}`;ctx.textAlign='left';ctx.fillText(`${(i+1)%10}`,x+3,hbY+10);
-    const sl=inv[i];if(sl){ctx.font='20px serif';ctx.textAlign='center';ctx.fillText(ITEMS[sl.id].icon,x+hbW/2,hbY+hbH/2+6);
+    const sl=inv[i];if(sl){
+      const sprName = ITEM_SPRITES[sl.id];
+      if(sprName && SpriteCache[sprName]){drawSprite(sprName,x+6,hbY+6,2);}
+      else{ctx.font='20px serif';ctx.textAlign='center';ctx.fillText(ITEMS[sl.id].icon,x+hbW/2,hbY+hbH/2+6);}
       if(sl.qty>1){ctx.fillStyle=C.white;ctx.font=`bold 12px ${FONT}`;ctx.fillText(sl.qty,x+hbW-8,hbY+hbH-4);}}
   }
   
