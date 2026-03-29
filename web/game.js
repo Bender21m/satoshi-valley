@@ -471,7 +471,7 @@ class Rig {
     if(this.ha>=1){this.ha=0;if(this.powered&&this.dur>0)this.temp+=this.ht*3;this.temp-=(this.temp-20)*(.06+cool);this.temp=Math.max(15,Math.min(100,this.temp));if(this.temp>=85)this.oh=true;if(this.temp<65)this.oh=false;}
     if(!this.powered||this.dur<=0||this.oh)return 0;
     this.ma+=dt;let e=0;
-    if(this.ma>=2){this.ma=0;const hp=1-Math.max(0,Math.min(.5,(this.temp-70)/30));const dp=this.dur/100;const ef=this.hr*hp*dp;e=Math.max(1,Math.floor(ef*10/econ.diff));this.mined+=e;
+    if(this.ma>=1.5){this.ma=0;const hp=1-Math.max(0,Math.min(.5,(this.temp-70)/30));const dp=this.dur/100;const ef=this.hr*hp*dp;e=Math.max(1,Math.floor(ef*15/econ.diff));this.mined+=e;
     if(Math.random()<ef*.0001){const rw=312500;e+=rw;this.mined+=rw;notify('⛏️ BLOCK FOUND! +312,500 sats!',6,true);sfx.block();}
     this.dur=Math.max(0,this.dur-.03);}return e;
   }
@@ -591,7 +591,7 @@ let invOpen = false;
 const notifs = [];
 function notify(text,dur=2.5,big=false){notifs.push({text,t:dur,big});}
 const particles = [];
-function satPart(x,y,n){particles.push({x:x*SCALE,y:y*SCALE,text:'+'+fmt(n),life:1.5,vy:-30});}
+function satPart(x,y,n){particles.push({x:x*SCALE,y:y*SCALE,text:'+'+fmt(n)+' ₿',life:2,vy:-25,size:n>100?16:13});}
 
 // ============================================================
 // ECONOMY & TIME
@@ -853,17 +853,27 @@ function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!
 // INIT
 // ============================================================
 generateMap();
-rigs.push(new Rig((homeX-12)*TILE+8, (homeY)*TILE+8, 0));
-rigs.push(new Rig((homeX-10)*TILE+8, (homeY)*TILE+8, 0));
+// Starter rigs in the mining shed — already mining!
+const rig1 = new Rig((homeX-12)*TILE+8, (homeY)*TILE+8, 0);
+const rig2 = new Rig((homeX-10)*TILE+8, (homeY)*TILE+8, 0);
+rig1.powered = true; rig2.powered = true;
+rigs.push(rig1); rigs.push(rig2);
 addItem('wrench', 3);
 addItem('bread', 5);
 addItem('cpu_miner', 1);
 addItem('potato_seed', 5);
 addItem('tomato_seed', 3);
 
-// Check for existing save
-if (localStorage.getItem('sv_save')) {
-  // Will offer load on title
+// Clear old saves from different versions to avoid broken state
+const existingSave = localStorage.getItem('sv_save');
+if (existingSave) {
+  try {
+    const d = JSON.parse(existingSave);
+    if (!d.v || d.v < 5) {
+      localStorage.removeItem('sv_save');
+      console.log('Cleared old save (version mismatch)');
+    }
+  } catch(e) { localStorage.removeItem('sv_save'); }
 }
 
 // ============================================================
@@ -1144,7 +1154,11 @@ function update(dt) {
     if(Math.abs(n.x-tx)>1)n.x+=Math.sign(tx-n.x)*s;if(Math.abs(n.y-ty)>1)n.y+=Math.sign(ty-n.y)*s;}
   
   // Rigs
-  let th=0;for(const r of rigs){const e=r.update(dt);if(e>0){player.wallet+=e;player.totalEarned+=e;if(e>50)satPart(r.x,r.y-10,e);if(e>5&&Math.random()<.1){sfx.coin();if(Math.random()<.05)addXP('mining',1);}}if(r.powered&&!r.oh&&r.dur>0)th+=r.hr;}
+  let th=0;for(const r of rigs){const e=r.update(dt);if(e>0){player.wallet+=e;player.totalEarned+=e;
+    // Always show sat particles when earning
+    satPart(r.x,r.y-10,e);
+    if(Math.random()<.2){sfx.coin();if(Math.random()<.1)addXP('mining',1);}
+  }if(r.powered&&!r.oh&&r.dur>0)th+=r.hr;}
   econ.diff=1+(th/10)*.5;updateHum(th);updatePower(dt);
   // Music sync
   if(music&&musicOn){music.setPhase(econ.phase);music.setTimeOfDay(getHour());}
@@ -1562,8 +1576,14 @@ function drawHUD(){
   const p=14;
   // Main panel
   panel(p,p,290,210);
-  let y=p+18;ctx.fillStyle=C.hud;ctx.font=`bold 18px ${FONT}`;ctx.textAlign='left';
-  ctx.fillText(`₿ ${fmt(player.wallet)} sats`,p+12,y);y+=20;
+  let y=p+18;
+  // Sats counter with earning indicator
+  const isEarning = rigs.some(r=>r.powered&&!r.oh&&r.dur>0);
+  const pulse = isEarning ? 1 + Math.sin(performance.now()/200)*0.08 : 1;
+  ctx.fillStyle=C.hud;ctx.font=`bold ${Math.floor(18*pulse)}px ${FONT}`;ctx.textAlign='left';
+  ctx.fillText(`₿ ${fmt(player.wallet)} sats`,p+12,y);
+  if(isEarning){ctx.fillStyle=C.green;ctx.font=`bold 13px ${FONT}`;ctx.fillText(' ⛏️ MINING',p+12+ctx.measureText(`₿ ${fmt(player.wallet)} sats`).width+8,y);}
+  y+=22;
   ctx.font=`15px ${FONT}`;ctx.fillStyle='#CCC';
   ctx.fillText(`${getTimeStr()}${time.spd>1?' ⏩':''}`,p+12,y);y+=16;
   ctx.fillText(`Day ${time.day} — ${getPeriod()}`,p+12,y);y+=18;
@@ -1707,7 +1727,13 @@ function drawHUD(){
     ctx.font=`bold ${n.big?18:14}px ${FONT}`;ctx.fillText(n.text,canvas.width/2,hbY-30-i*24);}
   
   // Particles
-  for(const pt of particles){ctx.fillStyle=`rgba(247,147,26,${Math.min(1,pt.life)})`;ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';ctx.fillText(pt.text,pt.x-cam.x,pt.y-cam.y);}
+  for(const pt of particles){
+    const a=Math.min(1,pt.life);
+    ctx.fillStyle=`rgba(0,0,0,${a*0.4})`;ctx.font=`bold ${pt.size||13}px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(pt.text,pt.x-cam.x+1,pt.y-cam.y+1); // shadow
+    ctx.fillStyle=`rgba(247,147,26,${a})`;
+    ctx.fillText(pt.text,pt.x-cam.x,pt.y-cam.y);
+  }
   ctx.textAlign='left';
 }
 
