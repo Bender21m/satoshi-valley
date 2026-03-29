@@ -95,12 +95,12 @@ canvas.addEventListener('click', e => {
   if (shopOpen) {
     const sw=560,sh=460,sx=(canvas.width-sw)/2,sy=(canvas.height-sh)/2;
     if (e.clientX<sx||e.clientX>sx+sw||e.clientY<sy||e.clientY>sy+sh) { shopOpen=false; sfx.menuClose(); return; }
-    if (e.clientY>=sy+40&&e.clientY<=sy+66) { shopMode=e.clientX<sx+sw/2?'buy':'sell'; shopCur=0; return; }
+    if (e.clientY>=sy+40&&e.clientY<=sy+66) { shopMode=e.clientX<sx+sw/2?'buy':'sell'; shopCur=0; shopScroll=0; return; }
     const ly=sy+112, rowH=32;
     if (e.clientY>=ly) {
-      const row=Math.floor((e.clientY-ly)/rowH);
+      const row=Math.floor((e.clientY-ly)/rowH)+shopScroll;
       const listLen=shopMode==='buy'?SHOP_LIST.length:inv.filter(s=>s&&ITEMS[s.id].sell>0).length;
-      if (row>=0&&row<listLen&&ly+row*rowH<sy+sh-35) {
+      if (row>=0&&row<listLen) {
         const wasSelected=shopCur===row, now=performance.now(); shopCur=row;
         if (wasSelected||now-lastShopClickTime<400) {
           if (shopMode==='buy') {
@@ -804,7 +804,7 @@ const ITEM_SPRITES = {
   cpu_miner: 'item_cpu', gpu_rig: 'item_gpu', asic_s21: 'item_asic',
   solar_panel: 'item_solar', battery: 'item_battery', cooling_fan: 'item_fan',
 };
-let shopOpen=false, shopCur=0, shopMode='buy', shopNpcRole='shop';
+let shopOpen=false, shopCur=0, shopMode='buy', shopNpcRole='shop', shopScroll=0;
 
 // ============================================================
 // UI STATE
@@ -1335,7 +1335,7 @@ function update(dt) {
         if(player.wallet>=pr){if(addItem(id)){player.wallet-=pr;sfx.buy();notify(`Bought ${it.icon} ${it.name} (${fmt(pr)})`,2);if(id==='gpu_rig')completeObjective('buy_gpu');}else{notify('Inventory full!',1.5);sfx.error();}}else{notify(`Need ${fmt(pr)} sats!`,1.5);sfx.error();}}
       else{const sell=inv.filter(s=>s&&ITEMS[s.id].sell>0);if(shopCur<sell.length){const s=sell[shopCur],it=ITEMS[s.id],pr=Math.ceil(it.sell*marketMult());removeItem(s.id);player.wallet+=pr;sfx.coin();notify(`Sold ${it.icon} ${it.name} (+${fmt(pr)})`,2);}}
     }
-    if(jp['arrowleft']||jp['a']||jp['arrowright']||jp['d']){shopMode=shopMode==='buy'?'sell':'buy';shopCur=0;}
+    if(jp['arrowleft']||jp['a']||jp['arrowright']||jp['d']){shopMode=shopMode==='buy'?'sell':'buy';shopCur=0;shopScroll=0;}
     for(const k in jp)jp[k]=false;return;
   }
   
@@ -2300,12 +2300,17 @@ function drawShop(){
   const ly=y+112;
   const rowH=32; // taller rows
   
+  const visRows=Math.floor((h-112-35)/rowH);
   if(shopMode==='buy'){
+    // Auto-scroll to keep selection visible
+    if(shopCur<shopScroll)shopScroll=shopCur;
+    if(shopCur>=shopScroll+visRows)shopScroll=shopCur-visRows+1;
+    ctx.save();ctx.beginPath();ctx.rect(x,ly-6,w,h-112-25);ctx.clip();
     SHOP_LIST.forEach((id,i)=>{
       const it=ITEMS[id];if(!it)return;
       const pr=Math.ceil(it.buy*mult);
-      const iy=ly+i*rowH;
-      if(iy>y+h-35)return;
+      const iy=ly+(i-shopScroll)*rowH;
+      if(iy<ly-rowH||iy>y+h-35)return;
       
       // Selection highlight
       if(i===shopCur){ctx.fillStyle='rgba(247,147,26,.12)';ctx.fillRect(x+8,iy-4,w-16,rowH-2);}
@@ -2329,12 +2334,23 @@ function drawShop(){
       ctx.fillText(`${fmt(pr)} sats`,x+w-14,iy+14);
       ctx.textAlign='left';
     });
+    ctx.restore();
+    // Scroll indicator
+    if(SHOP_LIST.length>visRows){
+      ctx.fillStyle=C.gray;ctx.font=`11px ${FONT}`;ctx.textAlign='right';
+      ctx.fillText(`${shopCur+1}/${SHOP_LIST.length}`,x+w-14,y+100);
+      if(shopScroll>0){ctx.fillStyle=C.hud;ctx.font=`12px ${FONT}`;ctx.textAlign='center';ctx.fillText('▲',x+w/2,ly-2);}
+      if(shopScroll+visRows<SHOP_LIST.length){ctx.fillStyle=C.hud;ctx.textAlign='center';ctx.fillText('▼',x+w/2,y+h-22);}
+    }
   } else {
+    if(shopCur<shopScroll)shopScroll=shopCur;
     const sl=inv.filter(s=>s&&ITEMS[s.id].sell>0);
+    if(shopCur>=shopScroll+visRows)shopScroll=shopCur-visRows+1;
     if(!sl.length){ctx.fillStyle=C.gray;ctx.font=`14px ${FONT}`;ctx.textAlign='center';ctx.fillText('Nothing to sell!',x+w/2,ly+30);ctx.textAlign='left';}
+    ctx.save();ctx.beginPath();ctx.rect(x,ly-6,w,h-112-25);ctx.clip();
     sl.forEach((s,i)=>{
       const it=ITEMS[s.id],pr=Math.ceil(it.sell*mult);
-      const iy=ly+i*rowH;if(iy>y+h-35)return;
+      const iy=ly+(i-shopScroll)*rowH;if(iy<ly-rowH||iy>y+h-35)return;
       if(i===shopCur){ctx.fillStyle='rgba(247,147,26,.12)';ctx.fillRect(x+8,iy-4,w-16,rowH-2);}
       ctx.font='18px serif';ctx.fillStyle=C.white;ctx.fillText(it.icon,x+14,iy+14);
       ctx.font=`bold 13px ${FONT}`;ctx.fillStyle=i===shopCur?C.hud:C.white;
@@ -2342,6 +2358,7 @@ function drawShop(){
       ctx.fillStyle=C.green;ctx.font=`bold 13px ${FONT}`;ctx.textAlign='right';
       ctx.fillText(`+${fmt(pr)} sats`,x+w-14,iy+14);ctx.textAlign='left';
     });
+    ctx.restore();
   }
   
   // Footer
