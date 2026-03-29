@@ -1,5 +1,5 @@
 // ============================================================
-// SATOSHI VALLEY — v0.4 "The Beautiful World Update"
+// SATOSHI VALLEY — v0.5 "The Daily Loop Update"
 // ============================================================
 
 const canvas = document.getElementById('game');
@@ -146,6 +146,9 @@ const ITEMS = {
   copper_ore:{name:'Copper Ore',desc:'Mined from mountains',icon:'🪨',type:'mat',buy:0,sell:50,stack:true},
   silicon:{name:'Silicon',desc:'Used in crafting',icon:'💎',type:'mat',buy:0,sell:100,stack:true},
   seed_fragment:{name:'Seed Fragment',desc:"Part of Uncle Toshi's seed phrase",icon:'🧩',type:'quest',buy:0,sell:0,stack:false},
+  potato_seed:{name:'Potato Seeds',desc:'Plant on dirt. Grows in 4 days.',icon:'🥔',type:'seed',buy:30,sell:10,stack:true},
+  tomato_seed:{name:'Tomato Seeds',desc:'Plant on dirt. Grows in 6 days.',icon:'🍅',type:'seed',buy:60,sell:20,stack:true},
+  corn_seed:{name:'Corn Seeds',desc:'Plant on dirt. Grows in 8 days.',icon:'🌽',type:'seed',buy:100,sell:35,stack:true},
 };
 
 // ============================================================
@@ -158,6 +161,7 @@ let introFade = 1;
 let tutorialStep = 0;
 let tutorialDone = false;
 let showObjectives = false;
+let showSkills = false;
 
 const INTRO_SLIDES = [
   { text: "The year is 2140.", sub: "The last bitcoin has been mined.", dur: 3.5 },
@@ -460,7 +464,7 @@ const npcs = [
 // ============================================================
 // SHOP
 // ============================================================
-const SHOP_LIST = ['wrench','pickaxe','cpu_miner','gpu_rig','asic_s21','solar_panel','battery','cooling_fan','bread','coffee'];
+const SHOP_LIST = ['wrench','pickaxe','cpu_miner','gpu_rig','asic_s21','solar_panel','battery','cooling_fan','bread','coffee','potato_seed','tomato_seed','corn_seed'];
 let shopOpen=false, shopCur=0, shopMode='buy';
 
 // ============================================================
@@ -477,6 +481,147 @@ function satPart(x,y,n){particles.push({x:x*SCALE,y:y*SCALE,text:'+'+fmt(n),life
 // ECONOMY & TIME
 // ============================================================
 const econ = {diff:1,phase:0,phaseN:['Accumulation','Hype','Euphoria','Capitulation'],pd:0,cycle:0,inf:1,halvings:0};
+
+// ============================================================
+// SKILLS SYSTEM — Visible progression
+// ============================================================
+const skills = {
+  mining: { level: 1, xp: 0, next: 100, icon: '⛏️', name: 'Mining' },
+  farming: { level: 1, xp: 0, next: 100, icon: '🌱', name: 'Farming' },
+  engineering: { level: 1, xp: 0, next: 100, icon: '⚙️', name: 'Engineering' },
+  social: { level: 1, xp: 0, next: 100, icon: '💬', name: 'Social' },
+  foraging: { level: 1, xp: 0, next: 100, icon: '🍄', name: 'Foraging' },
+};
+
+function addXP(skill, amount) {
+  const s = skills[skill]; if (!s) return;
+  s.xp += amount;
+  while (s.xp >= s.next) {
+    s.xp -= s.next; s.level++;
+    s.next = Math.floor(s.next * 1.5);
+    notify(`🎉 ${s.icon} ${s.name} leveled up to ${s.level}!`, 4, true);
+    sfx.buy();
+  }
+}
+
+// ============================================================
+// CROP SYSTEM — "Something finishing soon" mechanic
+// ============================================================
+const crops = []; // { x, y, type, planted, growDays, stage, water }
+const CROP_TYPES = {
+  potato: { name: 'Potato', icon: '🥔', grow: 4, sell: 120, stages: ['🌱','🌿','🥬','🥔'] },
+  tomato: { name: 'Tomato', icon: '🍅', grow: 6, sell: 200, stages: ['🌱','🌿','🌺','🍅'] },
+  corn: { name: 'Corn', icon: '🌽', grow: 8, sell: 350, stages: ['🌱','🌿','🌾','🌽'] },
+  pumpkin: { name: 'Pumpkin', icon: '🎃', grow: 12, sell: 800, stages: ['🌱','🌿','🎃','🎃'] },
+};
+
+function plantCrop(x, y, type) {
+  crops.push({ x, y, type, planted: time.day, dayAge: 0, stage: 0, watered: false });
+}
+
+function updateCrops() {
+  for (const crop of crops) {
+    crop.dayAge++;
+    const info = CROP_TYPES[crop.type];
+    const progress = crop.dayAge / info.grow;
+    crop.stage = Math.min(info.stages.length - 1, Math.floor(progress * info.stages.length));
+    crop.watered = false; // Reset daily
+  }
+}
+
+function harvestCrop(index) {
+  const crop = crops[index];
+  const info = CROP_TYPES[crop.type];
+  if (crop.dayAge >= info.grow) {
+    const value = Math.ceil(info.sell * marketMult());
+    player.wallet += value;
+    player.totalEarned += value;
+    addXP('farming', 15 + info.grow * 2);
+    notify(`${info.icon} Harvested ${info.name}! +${fmt(value)} sats`, 3);
+    sfx.coin();
+    crops.splice(index, 1);
+    return true;
+  }
+  return false;
+}
+
+// ============================================================
+// NPC RELATIONSHIP SYSTEM — Hearts
+// ============================================================
+const relationships = {};
+function initRelationships() {
+  for (const npc of npcs) {
+    if (!relationships[npc.name]) {
+      relationships[npc.name] = { hearts: 0, maxHearts: 10, talked: false, gifted: false };
+    }
+  }
+}
+
+function addHearts(name, amount) {
+  const r = relationships[name]; if (!r) return;
+  r.hearts = Math.min(r.maxHearts, r.hearts + amount);
+  addXP('social', 5);
+}
+
+// ============================================================
+// DAILY SUMMARY — End of day recap
+// ============================================================
+let showDaySummary = false;
+let daySummary = null;
+let lastDayEarned = 0;
+let lastDayCrops = 0;
+
+function createDaySummary() {
+  const earned = player.totalEarned - lastDayEarned;
+  lastDayEarned = player.totalEarned;
+  
+  daySummary = {
+    day: time.day - 1,
+    earned,
+    rigsActive: rigs.filter(r => r.powered && r.dur > 0).length,
+    cropsGrown: 0,
+    phase: econ.phaseN[econ.phase],
+  };
+  showDaySummary = true;
+}
+
+// ============================================================
+// CONTROLS OVERLAY
+// ============================================================
+let showControls = false;
+const CONTROLS_LIST = [
+  ['WASD / Arrows', 'Move around'],
+  ['E', 'Interact (talk, toggle rigs, repair)'],
+  ['R', 'Use selected item / Plant crop on dirt'],
+  ['1-9, 0', 'Select hotbar slot'],
+  ['I / Tab', 'Open inventory'],
+  ['B', 'Open shop (near Ruby)'],
+  ['O', 'View objectives'],
+  ['H', 'Harvest crop (when near ready crop)'],
+  ['K', 'Skills overview'],
+  ['P', 'Save game'],
+  ['L', 'Load game'],
+  ['M', 'Toggle music'],
+  ['Space', 'Fast forward time'],
+  ['F', 'Toggle fullscreen'],
+  ['?', 'This controls screen'],
+  ['Esc', 'Close any menu'],
+];
+
+// ============================================================
+// MUSIC
+// ============================================================
+let music = null;
+let musicOn = true;
+function startMusic() {
+  if (!music) music = new MusicEngine();
+  music.start();
+}
+function toggleMusic() {
+  if (!music) { startMusic(); return; }
+  if (musicOn) { music.stop(); musicOn = false; notify('🔇 Music off', 1.5); }
+  else { music.start(); musicOn = true; notify('🎵 Music on', 1.5); }
+}
 const time = {dl:180,cur:.25,day:1,spd:1,td:1};
 function getHour(){return time.cur*24;}
 function getTimeStr(){const h=Math.floor(getHour()),m=Math.floor((getHour()-h)*60);return`${h%12||12}:${m.toString().padStart(2,'0')} ${h<12?'AM':'PM'}`;}
@@ -489,8 +634,11 @@ const cam = {x:0,y:0};
 // ============================================================
 // SAVE / LOAD
 // ============================================================
-function saveGame(){try{localStorage.setItem('sv_save',JSON.stringify({v:4,p:{x:player.x,y:player.y,w:player.wallet,te:player.totalEarned,e:player.energy},inv:inv.map(s=>s?{id:s.id,q:s.qty}:null),ss:selSlot,rigs:rigs.map(r=>({x:r.x,y:r.y,t:r.tier,p:r.powered,tp:r.temp,d:r.dur,m:r.mined})),placed:placed.map(i=>({x:i.x,y:i.y,t:i.type})),econ:{...econ},time:{...time},pwr:{p:pwr.panels,b:pwr.batts},obj:objectives.map(o=>o.done),tut:tutorialDone}));notify('💾 Saved!',2);sfx.buy();}catch(e){notify('❌ Save failed!',2);}}
-function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!d)return notify('No save found!',2),false;player.x=d.p.x;player.y=d.p.y;player.wallet=d.p.w;player.totalEarned=d.p.te;player.energy=d.p.e||100;inv.length=0;d.inv.forEach(s=>inv.push(s?{id:s.id,qty:s.q}:null));selSlot=d.ss||0;rigs.length=0;d.rigs.forEach(r=>{const ri=new Rig(r.x,r.y,r.t);ri.powered=r.p;ri.temp=r.tp;ri.dur=r.d;ri.mined=r.m;rigs.push(ri);});placed.length=0;(d.placed||[]).forEach(i=>placed.push(i));Object.assign(econ,d.econ);Object.assign(time,d.time);pwr.panels=d.pwr?.p||[];pwr.batts=d.pwr?.b||[];if(d.obj)d.obj.forEach((done,i)=>{if(objectives[i])objectives[i].done=done;});tutorialDone=d.tut||false;gameState='playing';notify('📂 Loaded!',2);sfx.buy();return true;}catch(e){notify('❌ Load failed!',2);return false;}}
+function saveGame(){try{localStorage.setItem('sv_save',JSON.stringify({v:5,p:{x:player.x,y:player.y,w:player.wallet,te:player.totalEarned,e:player.energy},inv:inv.map(s=>s?{id:s.id,q:s.qty}:null),ss:selSlot,rigs:rigs.map(r=>({x:r.x,y:r.y,t:r.tier,p:r.powered,tp:r.temp,d:r.dur,m:r.mined})),placed:placed.map(i=>({x:i.x,y:i.y,t:i.type})),econ:{...econ},time:{...time},pwr:{p:pwr.panels,b:pwr.batts},obj:objectives.map(o=>o.done),tut:tutorialDone,skills,crops:crops.map(c=>({x:c.x,y:c.y,type:c.type,dayAge:c.dayAge,stage:c.stage})),rels:relationships}));notify('💾 Saved!',2);sfx.buy();}catch(e){notify('❌ Save failed!',2);}}
+function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!d)return notify('No save found!',2),false;player.x=d.p.x;player.y=d.p.y;player.wallet=d.p.w;player.totalEarned=d.p.te;player.energy=d.p.e||100;inv.length=0;d.inv.forEach(s=>inv.push(s?{id:s.id,qty:s.q}:null));selSlot=d.ss||0;rigs.length=0;d.rigs.forEach(r=>{const ri=new Rig(r.x,r.y,r.t);ri.powered=r.p;ri.temp=r.tp;ri.dur=r.d;ri.mined=r.m;rigs.push(ri);});placed.length=0;(d.placed||[]).forEach(i=>placed.push(i));Object.assign(econ,d.econ);Object.assign(time,d.time);pwr.panels=d.pwr?.p||[];pwr.batts=d.pwr?.b||[];if(d.obj)d.obj.forEach((done,i)=>{if(objectives[i])objectives[i].done=done;});tutorialDone=d.tut||false;
+    if(d.skills)Object.assign(skills,d.skills);
+    crops.length=0;if(d.crops)d.crops.forEach(c=>crops.push(c));
+    if(d.rels)Object.assign(relationships,d.rels);gameState='playing';notify('📂 Loaded!',2);sfx.buy();return true;}catch(e){notify('❌ Load failed!',2);return false;}}
 
 // ============================================================
 // INIT
@@ -501,6 +649,8 @@ rigs.push(new Rig((homeX-10)*TILE+8, (homeY)*TILE+8, 0));
 addItem('wrench', 3);
 addItem('bread', 5);
 addItem('cpu_miner', 1);
+addItem('potato_seed', 5);
+addItem('tomato_seed', 3);
 
 // Check for existing save
 if (localStorage.getItem('sv_save')) {
@@ -519,9 +669,9 @@ function updateIntro(dt) {
       // Check for save
       if (localStorage.getItem('sv_save')) {
         if (confirm('Continue saved game?')) { loadGame(); }
-        else { gameState = 'playing'; sfx.story(); }
+        else { gameState = 'playing'; sfx.story(); startMusic(); }
       } else {
-        gameState = 'playing'; sfx.story();
+        gameState = 'playing'; sfx.story(); startMusic();
       }
     } else {
       introStep++; introTimer = 0;
@@ -604,6 +754,10 @@ function update(dt) {
   // Time
   time.cur += (dt*time.spd)/time.dl;
   if (time.cur>=1){time.cur-=1;time.day++;time.td++;econ.pd++;
+    updateCrops(); // Grow crops each day
+    createDaySummary(); // Show daily recap
+    // Reset NPC talk flags
+    for (const name in relationships) { relationships[name].talked = false; relationships[name].gifted = false; }
     if(time.day%7===0)saveGame();
     if(econ.pd>=28){econ.pd=0;econ.phase=(econ.phase+1)%4;
       if(econ.phase===0){econ.cycle++;econ.inf*=1.05;
@@ -639,6 +793,20 @@ function update(dt) {
   
   // ---- MENU INPUTS ----
   if(jp['o']) showObjectives = !showObjectives;
+  if(jp['k']) showSkills = !showSkills;
+  if(jp['?']) showControls = !showControls;
+  if(jp['m']) toggleMusic();
+  if(jp['h'] && !shopOpen && !invOpen) {
+    // Harvest nearest crop
+    const ix = player.x + player.facing.x * 16, iy = player.y + player.facing.y * 16;
+    for (let i = crops.length - 1; i >= 0; i--) {
+      if (Math.hypot(crops[i].x * TILE + 8 - ix, crops[i].y * TILE + 8 - iy) < 24) {
+        if (harvestCrop(i)) break;
+        else { notify('Not ready yet! ' + (CROP_TYPES[crops[i].type].grow - crops[i].dayAge) + ' days left', 2); break; }
+      }
+    }
+  }
+  if (showDaySummary && (jp['enter'] || jp['e'] || jp[' '])) { showDaySummary = false; }
   if(jp['b']){const nr=npcs.find(n=>n.role==='shop'&&Math.hypot(n.x-player.x,n.y-player.y)<60);if(nr&&!shopOpen){shopOpen=true;shopCur=0;shopMode='buy';sfx.menuOpen();dlg=null;}else if(shopOpen){shopOpen=false;sfx.menuClose();}}
   if(jp['i']||jp['tab']){if(!shopOpen){invOpen=!invOpen;invOpen?sfx.menuOpen():sfx.menuClose();}}
   if(jp['escape']){if(shopOpen){shopOpen=false;sfx.menuClose();}else if(invOpen){invOpen=false;sfx.menuClose();}else if(dlg)dlg=null;else if(showObjectives)showObjectives=false;}
@@ -695,7 +863,10 @@ function update(dt) {
         else{cr.powered=!cr.powered;sfx.interact();notify(`Rig ${cr.powered?'ON ⚡':'OFF 💤'}`,1.5);}
       }else{
         for(const n of npcs){if(Math.hypot(n.x-ix,n.y-iy)<32){dlg={name:n.name,text:n.dlg[Math.floor(Math.random()*n.dlg.length)],role:n.role};sfx.interact();
-          if(n.name==='The Hermit')completeObjective('find_hermit');break;}}
+          if(n.name==='The Hermit')completeObjective('find_hermit');
+          initRelationships();
+          if(!relationships[n.name].talked){relationships[n.name].talked=true;addHearts(n.name,0.2);addXP('social',3);}
+          break;}}
       }
     }
   }
@@ -731,10 +902,21 @@ function update(dt) {
       else if(sel.id==='pickaxe'){
         const tx=Math.floor((player.x+player.facing.x*16)/TILE),ty=Math.floor((player.y+player.facing.y*16)/TILE);
         if(map[ty]&&(map[ty][tx]===T.STONE||map[ty][tx]===T.CLIFF)){
-          if(Math.random()<.4){addItem('copper_ore');sfx.repair();notify('🪨 Copper ore!',1.5);}
-          else if(Math.random()<.25){addItem('silicon');sfx.repair();notify('💎 Silicon!',1.5);}
-          else{sfx.interact();notify('Nothing...',1);}
+          if(Math.random()<.4){addItem('copper_ore');sfx.repair();notify('🪨 Copper ore!',1.5);addXP('foraging',3);}
+          else if(Math.random()<.25){addItem('silicon');sfx.repair();notify('💎 Silicon!',1.5);addXP('foraging',5);}
+          else{sfx.interact();notify('Nothing...',1);addXP('foraging',1);}
         }
+      }
+      // CROP PLANTING on dirt tiles
+      else if(sel.id==='potato_seed'||sel.id==='tomato_seed'||sel.id==='corn_seed'){
+        const tx=Math.floor((player.x+player.facing.x*16)/TILE),ty=Math.floor((player.y+player.facing.y*16)/TILE);
+        if(map[ty]&&map[ty][tx]===T.DIRT&&!crops.some(c=>c.x===tx&&c.y===ty)){
+          const cropType = sel.id.replace('_seed','');
+          removeItem(sel.id);
+          plantCrop(tx,ty,cropType);
+          sfx.place();notify(`🌱 Planted ${CROP_TYPES[cropType].name}! (${CROP_TYPES[cropType].grow} days)`,2);
+          addXP('farming',5);
+        } else { notify("Plant on empty dirt tiles!",1.5); sfx.error(); }
       }
     }
   }
@@ -745,8 +927,10 @@ function update(dt) {
     if(Math.abs(n.x-tx)>1)n.x+=Math.sign(tx-n.x)*s;if(Math.abs(n.y-ty)>1)n.y+=Math.sign(ty-n.y)*s;}
   
   // Rigs
-  let th=0;for(const r of rigs){const e=r.update(dt);if(e>0){player.wallet+=e;player.totalEarned+=e;if(e>50)satPart(r.x,r.y-10,e);if(e>5&&Math.random()<.1)sfx.coin();}if(r.powered&&!r.oh&&r.dur>0)th+=r.hr;}
+  let th=0;for(const r of rigs){const e=r.update(dt);if(e>0){player.wallet+=e;player.totalEarned+=e;if(e>50)satPart(r.x,r.y-10,e);if(e>5&&Math.random()<.1){sfx.coin();if(Math.random()<.05)addXP('mining',1);}}if(r.powered&&!r.oh&&r.dur>0)th+=r.hr;}
   econ.diff=1+(th/10)*.5;updateHum(th);updatePower(dt);
+  // Music sync
+  if(music&&musicOn){music.setPhase(econ.phase);music.setTimeOfDay(getHour());}
   
   // Camera (smooth)
   cam.x+=(player.x*SCALE-canvas.width/2-cam.x)*3.5*dt;
@@ -982,7 +1166,7 @@ function drawHUD(){
   
   // Controls hint
   ctx.fillStyle='#333';ctx.font=`9px ${FONT}`;ctx.textAlign='center';
-  ctx.fillText('WASD:Move  E:Interact  R:Use  I:Inventory  B:Shop  O:Objectives  P:Save  L:Load  F:Fullscreen',canvas.width/2,canvas.height-6);
+  ctx.fillText('WASD:Move  E:Interact  R:Use/Plant  H:Harvest  I:Inventory  B:Shop  O:Objectives  K:Skills  M:Music  ?:Help',canvas.width/2,canvas.height-6);
   
   // Energy
   const ebW=100,ebX=canvas.width-ebW-p-10,ebY=hbY-18;
@@ -1024,6 +1208,9 @@ function drawHUD(){
   // Shop
   if(shopOpen) drawShop();
   if(invOpen) drawInv();
+  if(showSkills) drawSkillsPanel();
+  if(showControls) drawControlsPanel();
+  if(showDaySummary && daySummary) drawDaySummary();
   
   // Notifications
   ctx.textAlign='center';
@@ -1085,6 +1272,154 @@ function fmt(n){return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,',');}
 // ============================================================
 // MAIN DRAW
 // ============================================================
+// ---- Draw crops in world ----
+function drawCrop(crop) {
+  const sx = crop.x * ST - cam.x, sy = crop.y * ST - cam.y;
+  if (sx > canvas.width + ST || sy > canvas.height + ST || sx < -ST || sy < -ST) return;
+  const info = CROP_TYPES[crop.type];
+  const icon = info.stages[crop.stage];
+  const ready = crop.dayAge >= info.grow;
+  
+  // Glow when ready
+  if (ready) {
+    ctx.fillStyle = `rgba(247,147,26,${0.2 + Math.sin(performance.now()/400)*0.1})`;
+    ctx.beginPath(); ctx.arc(sx + ST/2, sy + ST/2, 20, 0, Math.PI*2); ctx.fill();
+  }
+  
+  ctx.font = `${16 + crop.stage * 4}px serif`; ctx.textAlign = 'center';
+  ctx.fillText(icon, sx + ST/2, sy + ST/2 + 8);
+  
+  // Progress bar
+  if (!ready) {
+    const pct = crop.dayAge / info.grow;
+    ctx.fillStyle = '#222'; ctx.fillRect(sx + 6, sy + ST - 6, ST - 12, 4);
+    ctx.fillStyle = C.green; ctx.fillRect(sx + 6, sy + ST - 6, (ST - 12) * pct, 4);
+  }
+  
+  // Harvest prompt
+  const dist = Math.hypot(crop.x * TILE + 8 - player.x, crop.y * TILE + 8 - player.y);
+  if (dist < 32 && ready) {
+    ctx.fillStyle = C.gold; ctx.font = `bold 10px ${FONT}`; ctx.textAlign = 'center';
+    ctx.fillText('[H] Harvest!', sx + ST/2, sy - 4);
+  } else if (dist < 32) {
+    ctx.fillStyle = C.gray; ctx.font = `9px ${FONT}`; ctx.textAlign = 'center';
+    ctx.fillText(`${info.grow - crop.dayAge}d left`, sx + ST/2, sy - 4);
+  }
+}
+
+// ---- Skills Panel ----
+function drawSkillsPanel() {
+  const skillKeys = Object.keys(skills);
+  const w = 320, h = 50 + skillKeys.length * 50;
+  const x = (canvas.width - w) / 2, y = (canvas.height - h) / 2;
+  panel(x, y, w, h);
+  ctx.fillStyle = C.hud; ctx.font = `bold 16px ${FONT}`; ctx.textAlign = 'center';
+  ctx.fillText('📊 Skills', canvas.width / 2, y + 24);
+  
+  skillKeys.forEach((key, i) => {
+    const s = skills[key];
+    const sy = y + 40 + i * 48;
+    ctx.fillStyle = C.white; ctx.font = `14px ${FONT}`; ctx.textAlign = 'left';
+    ctx.fillText(`${s.icon} ${s.name}`, x + 16, sy + 16);
+    ctx.fillStyle = C.hud; ctx.font = `bold 14px ${FONT}`;
+    ctx.fillText(`Lv ${s.level}`, x + w - 70, sy + 16);
+    // XP bar
+    ctx.fillStyle = '#222'; ctx.fillRect(x + 16, sy + 24, w - 32, 10);
+    ctx.fillStyle = C.orange; ctx.fillRect(x + 16, sy + 24, (w - 32) * (s.xp / s.next), 10);
+    ctx.fillStyle = C.gray; ctx.font = `9px ${FONT}`;
+    ctx.fillText(`${s.xp}/${s.next} XP`, x + w / 2 - 20, sy + 33);
+  });
+  
+  ctx.fillStyle = C.gray; ctx.font = `10px ${FONT}`; ctx.textAlign = 'center';
+  ctx.fillText('[K] or [Esc] to close', canvas.width / 2, y + h - 10);
+}
+
+// ---- Controls Panel ----
+function drawControlsPanel() {
+  const w = 420, h = 40 + CONTROLS_LIST.length * 22;
+  const x = (canvas.width - w) / 2, y = (canvas.height - h) / 2;
+  panel(x, y, w, h);
+  ctx.fillStyle = C.hud; ctx.font = `bold 16px ${FONT}`; ctx.textAlign = 'center';
+  ctx.fillText('🎮 Controls', canvas.width / 2, y + 24);
+  
+  CONTROLS_LIST.forEach((item, i) => {
+    const sy = y + 40 + i * 22;
+    ctx.fillStyle = C.hud; ctx.font = `bold 11px ${FONT}`; ctx.textAlign = 'left';
+    ctx.fillText(item[0], x + 20, sy + 14);
+    ctx.fillStyle = '#CCC'; ctx.font = `11px ${FONT}`;
+    ctx.fillText(item[1], x + 160, sy + 14);
+  });
+  
+  ctx.fillStyle = C.gray; ctx.font = `10px ${FONT}`; ctx.textAlign = 'center';
+  ctx.fillText('[?] or [Esc] to close', canvas.width / 2, y + h - 10);
+}
+
+// ---- Daily Summary ----
+function drawDaySummary() {
+  const w = 380, h = 240;
+  const x = (canvas.width - w) / 2, y = (canvas.height - h) / 2;
+  
+  // Dim background
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  panel(x, y, w, h);
+  ctx.fillStyle = C.hud; ctx.font = `bold 20px ${FONT}`; ctx.textAlign = 'center';
+  ctx.fillText(`🌙 End of Day ${daySummary.day}`, canvas.width / 2, y + 32);
+  
+  let sy = y + 60;
+  ctx.font = `14px ${FONT}`; ctx.textAlign = 'left';
+  
+  ctx.fillStyle = C.white;
+  ctx.fillText(`💰 Sats earned today:`, x + 24, sy);
+  ctx.fillStyle = C.green; ctx.textAlign = 'right';
+  ctx.fillText(`+${fmt(daySummary.earned)}`, x + w - 24, sy);
+  sy += 28;
+  
+  ctx.textAlign = 'left'; ctx.fillStyle = C.white;
+  ctx.fillText(`⛏️ Active rigs:`, x + 24, sy);
+  ctx.fillStyle = C.hud; ctx.textAlign = 'right';
+  ctx.fillText(`${daySummary.rigsActive}`, x + w - 24, sy);
+  sy += 28;
+  
+  ctx.textAlign = 'left'; ctx.fillStyle = C.white;
+  ctx.fillText(`🌱 Crops growing:`, x + 24, sy);
+  ctx.fillStyle = C.hud; ctx.textAlign = 'right';
+  ctx.fillText(`${crops.length}`, x + w - 24, sy);
+  sy += 28;
+  
+  ctx.textAlign = 'left'; ctx.fillStyle = C.white;
+  ctx.fillText(`📈 Market phase:`, x + 24, sy);
+  ctx.fillStyle = C.phaseCol[econ.phase]; ctx.textAlign = 'right';
+  ctx.fillText(daySummary.phase, x + w - 24, sy);
+  sy += 28;
+  
+  ctx.textAlign = 'left'; ctx.fillStyle = C.white;
+  ctx.fillText(`💰 Total balance:`, x + 24, sy);
+  ctx.fillStyle = C.gold; ctx.textAlign = 'right';
+  ctx.fillText(`${fmt(player.wallet)} sats`, x + w - 24, sy);
+  
+  // Pulsing continue
+  ctx.globalAlpha = 0.5 + Math.sin(performance.now() / 400) * 0.5;
+  ctx.fillStyle = C.orange; ctx.font = `bold 13px ${FONT}`; ctx.textAlign = 'center';
+  ctx.fillText('Press ENTER to continue', canvas.width / 2, y + h - 20);
+  ctx.globalAlpha = 1;
+}
+
+// ---- NPC hearts in HUD near NPC ----
+function drawNPCHearts(npc) {
+  initRelationships();
+  const r = relationships[npc.name]; if (!r) return;
+  const sx = npc.x * SCALE - cam.x, sy = npc.y * SCALE - cam.y - ST/2 - 34;
+  const dist = Math.hypot(npc.x - player.x, npc.y - player.y);
+  if (dist > 48) return;
+  
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = i < Math.floor(r.hearts) ? '#FF4466' : (i < Math.ceil(r.hearts) ? '#FF8899' : '#333');
+    ctx.font = '10px serif';
+    ctx.fillText('♥', sx - 20 + i * 10, sy);
+  }
+}
+
 function draw(){
   if(gameState==='intro'){drawIntro();return;}
   
@@ -1104,7 +1439,11 @@ function draw(){
   for(const n of npcs)entities.push({y:n.y,draw:()=>drawNPC(n)});
   entities.push({y:player.y,draw:drawPlayer});
   entities.sort((a,b)=>a.y-b.y);
+  // Draw crops
+  for(const crop of crops) drawCrop(crop);
   for(const e of entities)e.draw();
+  // NPC hearts
+  for(const npc of npcs) drawNPCHearts(npc);
   
   // Day/night
   const dn=getDayOv();
