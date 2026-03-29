@@ -379,6 +379,9 @@ let tutorialDone = false;
 let showObjectives = false;
 let showSkills = false;
 let minimapOpen = true;
+let interior = null; // null = overworld, or {type, map, w, h, furniture, doorX, returnX, returnY}
+let transition = null; // {type:'fadeIn'|'fadeOut', timer, duration, callback}
+const INTERIOR_MAPS = {}; // generated once, keyed by building type
 
 const INTRO_SLIDES = [
   { text: '"Chancellor on brink of second bailout for banks."', sub: "— The Times, January 3, 2009", dur: 4 },
@@ -739,6 +742,73 @@ function isNearHome() {
   return Math.hypot(player.x - doorX, player.y - doorY) < TILE * 4;
 }
 
+function startTransition(type, duration, callback) {
+  transition = {type, timer: 0, duration, callback};
+}
+
+function createInterior(type, w, h, furniture) {
+  const tileMap = [];
+  for (let y = 0; y < h; y++) {
+    tileMap[y] = [];
+    for (let x = 0; x < w; x++) {
+      if (y === 0 || y === h-1 || x === 0 || x === w-1) tileMap[y][x] = T.WALL;
+      else tileMap[y][x] = T.FLOOR;
+    }
+  }
+  // Door at bottom center
+  const doorX = Math.floor(w/2);
+  tileMap[h-1][doorX] = T.PATH;
+  if (w > 6) tileMap[h-1][doorX+1] = T.PATH;
+  // Mark non-chair furniture tiles as solid
+  for (const f of furniture) {
+    if (f.item !== 'chair') tileMap[f.y][f.x] = T.WALL;
+  }
+  return {type, map: tileMap, w, h, furniture, doorX, spawnX: doorX*TILE+8, spawnY: (h-2)*TILE+8};
+}
+
+function generateInteriors() {
+  INTERIOR_MAPS.home = createInterior('home', 12, 10, [
+    {x:2,y:1,item:'bed'},{x:3,y:1,item:'bed'},
+    {x:8,y:1,item:'bookshelf'},{x:9,y:1,item:'bookshelf'},
+    {x:2,y:4,item:'table'},{x:3,y:4,item:'chair'},
+    {x:8,y:4,item:'desk'},{x:9,y:3,item:'chair'},
+    {x:5,y:1,item:'fireplace'},
+    {x:1,y:7,item:'crate'},{x:10,y:7,item:'crate'},
+  ]);
+  INTERIOR_MAPS.shop = createInterior('shop', 14, 10, [
+    {x:1,y:1,item:'shelf'},{x:2,y:1,item:'shelf'},{x:3,y:1,item:'shelf'},
+    {x:5,y:1,item:'shelf'},{x:6,y:1,item:'shelf'},{x:7,y:1,item:'shelf'},
+    {x:9,y:1,item:'shelf'},{x:10,y:1,item:'shelf'},{x:11,y:1,item:'shelf'},
+    {x:4,y:4,item:'counter'},{x:5,y:4,item:'counter'},{x:6,y:4,item:'counter'},
+    {x:7,y:4,item:'counter'},{x:8,y:4,item:'counter'},
+    {x:1,y:7,item:'barrel'},{x:12,y:7,item:'barrel'},
+    {x:3,y:7,item:'crate'},{x:10,y:7,item:'crate'},
+  ]);
+  INTERIOR_MAPS.tavern = createInterior('tavern', 12, 10, [
+    {x:1,y:1,item:'barrel'},{x:2,y:1,item:'barrel'},{x:9,y:1,item:'barrel'},{x:10,y:1,item:'barrel'},
+    {x:1,y:2,item:'counter'},{x:2,y:2,item:'counter'},{x:3,y:2,item:'counter'},
+    {x:3,y:4,item:'table'},{x:5,y:4,item:'table'},{x:7,y:4,item:'table'},
+    {x:3,y:6,item:'table'},{x:5,y:6,item:'table'},{x:7,y:6,item:'table'},
+    {x:9,y:4,item:'chair'},{x:9,y:6,item:'chair'},
+    {x:6,y:1,item:'fireplace'},
+  ]);
+  INTERIOR_MAPS.shed = createInterior('shed', 10, 8, [
+    {x:1,y:1,item:'workbench'},{x:2,y:1,item:'workbench'},
+    {x:5,y:1,item:'shelf'},{x:6,y:1,item:'shelf'},
+    {x:8,y:1,item:'shelf'},
+    {x:1,y:4,item:'crate'},{x:2,y:4,item:'crate'},
+    {x:7,y:4,item:'workbench'},
+  ]);
+  INTERIOR_MAPS.hall = createInterior('hall', 14, 10, [
+    {x:6,y:1,item:'desk'},{x:7,y:1,item:'desk'},
+    {x:6,y:2,item:'chair'},
+    {x:1,y:1,item:'bookshelf'},{x:2,y:1,item:'bookshelf'},{x:11,y:1,item:'bookshelf'},{x:12,y:1,item:'bookshelf'},
+    {x:3,y:5,item:'chair'},{x:5,y:5,item:'chair'},{x:8,y:5,item:'chair'},{x:10,y:5,item:'chair'},
+    {x:3,y:6,item:'bench'},{x:5,y:6,item:'bench'},{x:8,y:6,item:'bench'},{x:10,y:6,item:'bench'},
+    {x:1,y:8,item:'barrel'},
+  ]);
+}
+
 function drawPath(x1, y1, x2, y2, width) {
   const dx = Math.sign(x2-x1), dy = Math.sign(y2-y1);
   let x = x1, y = y1;
@@ -755,7 +825,13 @@ function drawPath(x1, y1, x2, y2, width) {
 }
 
 function setT(x,y,t){if(y>=0&&y<MAP_H&&x>=0&&x<MAP_W)map[y][x]=t;}
-function isSolid(tx,ty){if(tx<0||ty<0||tx>=MAP_W||ty>=MAP_H)return true;return SOLID.has(map[ty][tx]);}
+function isSolid(tx,ty){
+  const m=interior?interior.map:map;
+  const mw=interior?interior.w:MAP_W;
+  const mh=interior?interior.h:MAP_H;
+  if(tx<0||ty<0||tx>=mw||ty>=mh)return true;
+  return SOLID.has(m[ty][tx]);
+}
 
 // ============================================================
 // PLAYER
@@ -1264,6 +1340,7 @@ function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!
 // ============================================================
 initSprites();
 generateMap();
+generateInteriors();
 // Starter rigs in the mining shed — already mining!
 const rig1 = new Rig((homeX-16)*TILE+8, (homeY-4)*TILE+8, 0);
 const rig2 = new Rig((homeX-14)*TILE+8, (homeY-4)*TILE+8, 0);
@@ -1388,6 +1465,17 @@ let tutTimer = 0, tutTriggered = false;
 
 function update(dt) {
   if (gameState === 'intro') { updateIntro(dt); return; }
+
+  // Transition freeze — nothing updates while fading
+  if (transition) {
+    transition.timer += dt;
+    if (transition.timer >= transition.duration) {
+      const cb = transition.callback;
+      transition = null;
+      if (cb) cb();
+    }
+    return;
+  }
   
   // Time
   time.cur += (dt*time.spd)/time.dl;
@@ -1554,6 +1642,49 @@ function update(dt) {
     }
   }
   
+  // ---- BUILDING ENTRY (overworld) ----
+  if (!interior && !transition) {
+    const ptx = Math.floor(player.x / TILE), pty = Math.floor(player.y / TILE);
+    if (map[pty] && (map[pty][ptx] === T.FLOOR || map[pty][ptx] === T.SHOP)) {
+      let buildingType = null;
+      const ct = CITADEL_TIERS[citadelTier];
+      const homeCx = homeX-Math.floor(ct.w/2), homeCy = homeY-Math.floor(ct.h/2);
+      if (ptx>=homeCx && ptx<homeCx+ct.w && pty>=homeCy && pty<homeCy+ct.h) buildingType='home';
+      else if (ptx>=homeX-18 && ptx<homeX-12 && pty>=homeY-6 && pty<homeY-1) buildingType='shed';
+      else if (ptx>=homeX+4 && ptx<homeX+12 && pty>=homeY+16 && pty<homeY+22) buildingType='shop';
+      else if (ptx>=homeX+20 && ptx<homeX+27 && pty>=homeY+12 && pty<homeY+18) buildingType='tavern';
+      else if (ptx>=homeX+12 && ptx<homeX+20 && pty>=homeY-10 && pty<homeY-4) buildingType='hall';
+
+      if (buildingType && INTERIOR_MAPS[buildingType]) {
+        const returnX = player.x, returnY = player.y + TILE;
+        startTransition('fadeOut', 0.4, () => {
+          const im = INTERIOR_MAPS[buildingType];
+          interior = {type:buildingType, map:im.map, w:im.w, h:im.h, furniture:im.furniture, doorX:im.doorX, returnX, returnY};
+          player.x = im.spawnX; player.y = im.spawnY;
+          cam.x = player.x * SCALE - canvas.width / 2;
+          cam.y = player.y * SCALE - canvas.height / 2;
+          startTransition('fadeIn', 0.4, null);
+          notify('Entered ' + buildingType.charAt(0).toUpperCase() + buildingType.slice(1), 2);
+        });
+      }
+    }
+  }
+
+  // ---- BUILDING EXIT (interior) ----
+  if (interior && !transition) {
+    const pty = Math.floor(player.y / TILE);
+    if (pty >= interior.h - 1) {
+      const rx = interior.returnX, ry = interior.returnY;
+      startTransition('fadeOut', 0.4, () => {
+        interior = null;
+        player.x = rx; player.y = ry;
+        cam.x = player.x * SCALE - canvas.width / 2;
+        cam.y = player.y * SCALE - canvas.height / 2;
+        startTransition('fadeIn', 0.4, null);
+      });
+    }
+  }
+
   // ---- INTERACT ----
   intCd-=dt;
   if(jp['e']&&intCd<=0&&!shopOpen&&!invOpen&&!chestOpen){
@@ -2068,6 +2199,25 @@ function drawDecor(d) {
       ctx.fillStyle='#8A6A30';ctx.fillRect(fx+8,fy+10,ST-16,ST-14);
       ctx.fillStyle='#6A4A20';ctx.fillRect(fx+10,fy+16,ST-20,2);ctx.fillRect(fx+ST/2-1,fy+10,2,ST-14);
     }
+    else if(d.item==='bed'){
+      ctx.fillStyle='#5A3A18';ctx.fillRect(fx+4,fy+8,ST-8,ST-10); // frame
+      ctx.fillStyle='#8888CC';ctx.fillRect(fx+6,fy+10,ST-12,ST-16); // blanket
+      ctx.fillStyle='#CCCCEE';ctx.fillRect(fx+6,fy+6,ST-12,8); // pillow
+    }
+    else if(d.item==='fireplace'){
+      ctx.fillStyle='#555';ctx.fillRect(fx+6,fy+4,ST-12,ST-6); // stone surround
+      ctx.fillStyle='#333';ctx.fillRect(fx+10,fy+10,ST-20,ST-14); // opening
+      const ft=performance.now()/200;
+      ctx.fillStyle='#FF6622';ctx.fillRect(fx+14,fy+16+Math.sin(ft)*2,4,8);
+      ctx.fillStyle='#FFAA22';ctx.fillRect(fx+20,fy+18+Math.sin(ft+1)*2,4,6);
+      ctx.fillStyle='#FF4400';ctx.fillRect(fx+17,fy+14+Math.sin(ft+2)*3,3,10);
+      ctx.fillStyle='rgba(255,150,50,0.08)';ctx.beginPath();ctx.arc(fx+ST/2,fy+ST/2,40,0,Math.PI*2);ctx.fill();
+    }
+    else if(d.item==='bench'){
+      ctx.fillStyle='#7A5A30';ctx.fillRect(fx+4,fy+20,ST-8,8);
+      ctx.fillStyle='#6A4A20';ctx.fillRect(fx+6,fy+28,6,10);ctx.fillRect(fx+ST-12,fy+28,6,10);
+      ctx.fillStyle='#8A6A40';ctx.fillRect(fx+4,fy+14,ST-8,8);
+    }
     else if(d.item==='market_stall'){
       ctx.fillStyle='#7A5A30';ctx.fillRect(fx+4,fy+20,ST-8,14);
       ctx.fillStyle='#6A4A20';ctx.fillRect(fx+6,fy+34,4,8);ctx.fillRect(fx+ST-10,fy+34,4,8);
@@ -2414,6 +2564,12 @@ function drawHUD(){
   ctx.fillStyle=C.orange;ctx.font=`bold 13px ${FONT}`;
   ctx.fillText(`${ct.icon} ${ct.name} Lv${citadelTier+1}`,p+12,y);
   if(isNearHome()){ctx.fillStyle=C.gray;ctx.font=`11px ${FONT}`;ctx.fillText('[C] Citadel Menu',p+12,y+12);}
+  // Interior building label
+  if(interior){
+    const iName={home:'🏠 Home',shop:"🏪 Ruby's Shop",tavern:'🍺 Hodl Tavern',shed:'⛏️ Mining Shed',hall:'🏛️ Town Hall'};
+    ctx.fillStyle=C.hud;ctx.font=`bold 14px ${FONT}`;ctx.textAlign='left';
+    ctx.fillText(iName[interior.type]||interior.type, p+12, y+28);
+  }
   
   // Hotbar
   const hbW=44,hbH=44,hbGap=4,hbN=10;
@@ -2570,7 +2726,7 @@ function drawHUD(){
   if(showDaySummary && daySummary) drawDaySummary();
 
   // Minimap
-  if(minimapOpen){
+  if(minimapOpen && !interior){
     const mmW=160, mmH=120, mmX=canvas.width-mmW-12, mmY=12;
     const scaleX=mmW/MAP_W, scaleY=mmH/MAP_H;
 
@@ -3034,19 +3190,29 @@ function draw(){
   
   ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,canvas.width,canvas.height);
   
+  const activeMap = interior ? interior.map : map;
+  const mapW = interior ? interior.w : MAP_W;
+  const mapH = interior ? interior.h : MAP_H;
+
   const sX=Math.max(0,Math.floor(cam.x/ST)-1),sY=Math.max(0,Math.floor(cam.y/ST)-1);
-  const eX=Math.min(MAP_W,sX+Math.ceil(canvas.width/ST)+3),eY=Math.min(MAP_H,sY+Math.ceil(canvas.height/ST)+3);
-  
+  const eX=Math.min(mapW,sX+Math.ceil(canvas.width/ST)+3),eY=Math.min(mapH,sY+Math.ceil(canvas.height/ST)+3);
+
   // Tiles
-  for(let y=sY;y<eY;y++)for(let x=sX;x<eX;x++)drawTile(x,y,map[y][x]);
-  
+  for(let y=sY;y<eY;y++)for(let x=sX;x<eX;x++)drawTile(x,y,activeMap[y][x]);
+
   // Sort all entities by Y for depth
   const entities = [];
-  for(const d of decor)entities.push({y:d.y*TILE+TILE,draw:()=>drawDecor(d)});
-  for(const i of placed)entities.push({y:i.y,draw:()=>drawPlaced(i)});
-  for(const r of rigs)entities.push({y:r.y,draw:()=>drawRig(r)});
-  for(const n of npcs)entities.push({y:n.y,draw:()=>drawNPC(n)});
-  for(const a of animals)entities.push({y:a.y,draw:()=>drawAnimal(a)});
+  if (!interior) {
+    for(const d of decor)entities.push({y:d.y*TILE+TILE,draw:()=>drawDecor(d)});
+    for(const i of placed)entities.push({y:i.y,draw:()=>drawPlaced(i)});
+    for(const r of rigs)entities.push({y:r.y,draw:()=>drawRig(r)});
+    for(const n of npcs)entities.push({y:n.y,draw:()=>drawNPC(n)});
+    for(const a of animals)entities.push({y:a.y,draw:()=>drawAnimal(a)});
+  } else {
+    for(const f of interior.furniture) {
+      entities.push({y:f.y*TILE+TILE, draw:()=>drawDecor({type:'furniture',item:f.item,x:f.x,y:f.y})});
+    }
+  }
   entities.push({y:player.y,draw:drawPlayer});
   entities.sort((a,b)=>a.y-b.y);
   // Draw crops
@@ -3119,6 +3285,14 @@ function draw(){
   }
 
   drawHUD();
+
+  // Transition fade overlay (drawn last, on top of everything)
+  if (transition) {
+    const progress = transition.timer / transition.duration;
+    const alpha = transition.type === 'fadeOut' ? progress : 1 - progress;
+    ctx.fillStyle = 'rgba(0,0,0,' + Math.min(1, alpha) + ')';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
 }
 
 // ============================================================
