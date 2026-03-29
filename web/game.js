@@ -225,6 +225,8 @@ const objectives = [
   // Chapter 4: The Mystery
   { id: 'find_seed', text: '🧩 Find a seed phrase fragment', done: false, chapter: "Chapter 4: Uncle Toshi's Secret" },
   { id: 'talk_all', text: '💬 Talk to every villager', done: false, chapter: '' },
+  { id: 'upgrade_citadel', text: '🏰 Upgrade your Citadel', done: false, chapter: 'Chapter 5: The Citadel' },
+  { id: 'max_citadel', text: '🗼 Achieve full Citadel tier', done: false, chapter: '' },
 ];
 
 function completeObjective(id) {
@@ -310,8 +312,8 @@ function generateMap() {
   }
   
   // ---- BUILDINGS ----
-  // Cabin (home)
-  buildBuilding(homeX-3, homeY-3, 7, 6, 'home');
+  // Home (citadel) — size determined by citadelTier
+  buildBuilding(homeX-Math.floor(CITADEL_TIERS[citadelTier].w/2), homeY-Math.floor(CITADEL_TIERS[citadelTier].h/2), CITADEL_TIERS[citadelTier].w, CITADEL_TIERS[citadelTier].h, 'home');
   // Mining Shed
   buildBuilding(homeX-14, homeY-2, 6, 5, 'shed');
   // Ruby's Shop
@@ -428,6 +430,54 @@ function buildBuilding(bx, by, w, h, type) {
   // Add roof decoration
   const roofColors = { home:'#8B2020', shed:'#5A6A4A', shop:'#C47415', tavern:'#6A3A1A', hall:'#4A4A6A' };
   decor.push({ x: bx, y: by-1, type: 'roof', w, h: 1, color: roofColors[type] || '#8B2020', label: type });
+}
+
+function rebuildCitadel() {
+  const t = CITADEL_TIERS[citadelTier];
+  const cx = homeX - Math.floor(t.w/2), cy = homeY - Math.floor(t.h/2);
+  // Clear old home area first (tier 4 max size)
+  const maxT = CITADEL_TIERS[CITADEL_TIERS.length-1];
+  const clearCx = homeX - Math.floor(maxT.w/2), clearCy = homeY - Math.floor(maxT.h/2);
+  for (let y = clearCy-1; y < clearCy+maxT.h+2; y++) for (let x = clearCx-1; x < clearCx+maxT.w+2; x++) {
+    if (y>=0&&y<MAP_H&&x>=0&&x<MAP_W) map[y][x] = T.GRASS;
+  }
+  // Remove old home roof from decor
+  for (let i = decor.length-1; i >= 0; i--) { if (decor[i].type==='roof'&&decor[i].label==='home') decor.splice(i,1); }
+  // Build new footprint
+  buildBuilding(cx, cy, t.w, t.h, 'home');
+  // For Compound (tier 3+): add outer defensive wall ring
+  if (citadelTier >= 3) {
+    for (let x = cx-2; x < cx+t.w+2; x++) { setT(x, cy-2, T.WALL); setT(x, cy+t.h+1, T.WALL); }
+    for (let y = cy-2; y < cy+t.h+2; y++) { setT(cx-2, y, T.WALL); setT(cx+t.w+1, y, T.WALL); }
+    // Gate in outer wall
+    setT(homeX, cy+t.h+1, T.PATH); setT(homeX+1, cy+t.h+1, T.PATH);
+  }
+  // For Citadel (tier 4): mark tower tile in decor
+  if (citadelTier >= 4) {
+    decor.push({ x: homeX+Math.floor(t.w/2)-1, y: cy, type: 'citadel_tower' });
+  }
+  // Restore path to front door
+  drawPath(homeX, homeY+3, homeX, homeY+5, 1);
+}
+
+function upgradeCitadel() {
+  if (citadelTier >= CITADEL_TIERS.length-1) { notify('🗼 Already at max Citadel tier!', 2); sfx.error(); return; }
+  const next = CITADEL_TIERS[citadelTier+1];
+  if (player.wallet < next.cost) { notify(`Need ${fmt(next.cost)} sats to upgrade!`, 2); sfx.error(); return; }
+  player.wallet -= next.cost;
+  citadelTier++;
+  rebuildCitadel();
+  const t = CITADEL_TIERS[citadelTier];
+  notify(`🏰 Upgraded to ${t.icon} ${t.name}! (Tier ${citadelTier})`, 4, true);
+  sfx.block();
+  completeObjective('upgrade_citadel');
+  if (citadelTier >= CITADEL_TIERS.length-1) completeObjective('max_citadel');
+}
+
+function isNearHome() {
+  const t = CITADEL_TIERS[citadelTier];
+  const doorX = homeX * TILE + 8, doorY = (homeY + Math.floor(t.h/2) + 1) * TILE + 8;
+  return Math.hypot(player.x - doorX, player.y - doorY) < TILE * 4;
 }
 
 function drawPath(x1, y1, x2, y2, width) {
@@ -721,6 +771,20 @@ function createDaySummary() {
 // CONTROLS OVERLAY
 // ============================================================
 let showControls = false;
+let citadelTier = 0;
+let citadelMenuOpen = false;
+
+// ============================================================
+// CITADEL UPGRADE TIERS
+// ============================================================
+const CITADEL_TIERS = [
+  {name:'Shack',   cost:0,      w:5,  h:4,  rooms:1, icon:'🛖', desc:'1 room. A humble beginning.'},
+  {name:'Cabin',   cost:2000,   w:7,  h:6,  rooms:2, icon:'🏠', desc:'2 rooms. A cozy upgrade.'},
+  {name:'House',   cost:10000,  w:9,  h:7,  rooms:4, icon:'🏡', desc:'4 rooms. A proper home.'},
+  {name:'Compound',cost:50000,  w:12, h:9,  rooms:6, icon:'🏰', desc:'6 rooms + defensive wall.'},
+  {name:'Citadel', cost:200000, w:15, h:11, rooms:8, icon:'🗼', desc:'8 rooms + Faraday cage + tower.'},
+];
+
 const CONTROLS_LIST = [
   ['WASD / Arrows', 'Move around'],
   ['E', 'Interact (talk, toggle rigs, repair)'],
@@ -731,6 +795,7 @@ const CONTROLS_LIST = [
   ['O', 'View objectives'],
   ['H', 'Harvest crop (when near ready crop)'],
   ['K', 'Skills overview'],
+  ['C', 'Citadel upgrade menu (near home)'],
   ['P', 'Save game'],
   ['L', 'Load game'],
   ['M', 'Toggle music'],
@@ -859,11 +924,13 @@ const cam = {x:0,y:0};
 // ============================================================
 // SAVE / LOAD
 // ============================================================
-function saveGame(){try{localStorage.setItem('sv_save',JSON.stringify({v:5,p:{x:player.x,y:player.y,w:player.wallet,te:player.totalEarned,e:player.energy},inv:inv.map(s=>s?{id:s.id,q:s.qty}:null),ss:selSlot,rigs:rigs.map(r=>({x:r.x,y:r.y,t:r.tier,p:r.powered,tp:r.temp,d:r.dur,m:r.mined})),placed:placed.map(i=>({x:i.x,y:i.y,t:i.type})),econ:{...econ},time:{...time},pwr:{p:pwr.panels,b:pwr.batts},obj:objectives.map(o=>o.done),tut:tutorialDone,skills,crops:crops.map(c=>({x:c.x,y:c.y,type:c.type,dayAge:c.dayAge,stage:c.stage})),rels:relationships}));notify('💾 Saved!',2);sfx.buy();}catch(e){notify('❌ Save failed!',2);}}
+function saveGame(){try{localStorage.setItem('sv_save',JSON.stringify({v:6,p:{x:player.x,y:player.y,w:player.wallet,te:player.totalEarned,e:player.energy},inv:inv.map(s=>s?{id:s.id,q:s.qty}:null),ss:selSlot,rigs:rigs.map(r=>({x:r.x,y:r.y,t:r.tier,p:r.powered,tp:r.temp,d:r.dur,m:r.mined})),placed:placed.map(i=>({x:i.x,y:i.y,t:i.type})),econ:{...econ},time:{...time},pwr:{p:pwr.panels,b:pwr.batts},obj:objectives.map(o=>o.done),tut:tutorialDone,skills,crops:crops.map(c=>({x:c.x,y:c.y,type:c.type,dayAge:c.dayAge,stage:c.stage})),rels:relationships,citadelTier}));notify('💾 Saved!',2);sfx.buy();}catch(e){notify('❌ Save failed!',2);}}
 function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!d)return notify('No save found!',2),false;player.x=d.p.x;player.y=d.p.y;player.wallet=d.p.w;player.totalEarned=d.p.te;player.energy=d.p.e||100;inv.length=0;d.inv.forEach(s=>inv.push(s?{id:s.id,qty:s.q}:null));selSlot=d.ss||0;rigs.length=0;d.rigs.forEach(r=>{const ri=new Rig(r.x,r.y,r.t);ri.powered=r.p;ri.temp=r.tp;ri.dur=r.d;ri.mined=r.m;rigs.push(ri);});placed.length=0;(d.placed||[]).forEach(i=>placed.push(i));Object.assign(econ,d.econ);Object.assign(time,d.time);pwr.panels=d.pwr?.p||[];pwr.batts=d.pwr?.b||[];if(d.obj)d.obj.forEach((done,i)=>{if(objectives[i])objectives[i].done=done;});tutorialDone=d.tut||false;
     if(d.skills)Object.assign(skills,d.skills);
     crops.length=0;if(d.crops)d.crops.forEach(c=>crops.push(c));
-    if(d.rels)Object.assign(relationships,d.rels);gameState='playing';notify('📂 Loaded!',2);sfx.buy();return true;}catch(e){notify('❌ Load failed!',2);return false;}}
+    if(d.rels)Object.assign(relationships,d.rels);
+    if(d.citadelTier!=null){citadelTier=d.citadelTier;rebuildCitadel();}
+    gameState='playing';notify('📂 Loaded!',2);sfx.buy();return true;}catch(e){notify('❌ Load failed!',2);return false;}}
 
 // ============================================================
 // INIT
@@ -886,7 +953,7 @@ const existingSave = localStorage.getItem('sv_save');
 if (existingSave) {
   try {
     const d = JSON.parse(existingSave);
-    if (!d.v || d.v < 5) {
+    if (!d.v || d.v < 6) {
       localStorage.removeItem('sv_save');
       console.log('Cleared old save (version mismatch)');
     }
@@ -1039,6 +1106,7 @@ function update(dt) {
   if(jp['k']) showSkills = !showSkills;
   if(jp['?']) showControls = !showControls;
   if(jp['m']) toggleMusic();
+  if(jp['c']){if(isNearHome()){citadelMenuOpen=!citadelMenuOpen;citadelMenuOpen?sfx.menuOpen():sfx.menuClose();}else{notify('Get near your home to open the Citadel menu [C]',2);sfx.error();}}
   if(jp['h'] && !shopOpen && !invOpen) {
     // Harvest nearest crop
     const ix = player.x + player.facing.x * 16, iy = player.y + player.facing.y * 16;
@@ -1052,9 +1120,15 @@ function update(dt) {
   if (showDaySummary && (jp['enter'] || jp['e'] || jp[' '])) { showDaySummary = false; }
   if(jp['b']){const nr=npcs.find(n=>n.role==='shop'&&Math.hypot(n.x-player.x,n.y-player.y)<60);if(nr&&!shopOpen){shopOpen=true;shopCur=0;shopMode='buy';sfx.menuOpen();dlg=null;}else if(shopOpen){shopOpen=false;sfx.menuClose();}}
   if(jp['i']||jp['tab']){if(!shopOpen){invOpen=!invOpen;invOpen?sfx.menuOpen():sfx.menuClose();}}
-  if(jp['escape']){if(shopOpen){shopOpen=false;sfx.menuClose();}else if(invOpen){invOpen=false;sfx.menuClose();}else if(dlg)dlg=null;else if(showObjectives)showObjectives=false;}
+  if(jp['escape']){if(shopOpen){shopOpen=false;sfx.menuClose();}else if(citadelMenuOpen){citadelMenuOpen=false;sfx.menuClose();}else if(invOpen){invOpen=false;sfx.menuClose();}else if(dlg)dlg=null;else if(showObjectives)showObjectives=false;}
   if(jp['p'])saveGame();if(jp['l'])loadGame();
   for(let n=0;n<=9;n++)if(jp[n.toString()])selSlot=n===0?9:n-1;
+  
+  // ---- CITADEL MENU NAV ----
+  if(citadelMenuOpen){
+    if(jp['enter']||jp['e']||jp['u']){upgradeCitadel();}
+    for(const k in jp)jp[k]=false;return;
+  }
   
   // ---- SHOP NAV ----
   if(shopOpen){
@@ -1361,6 +1435,17 @@ function drawDecor(d) {
     ctx.fillStyle=`rgba(247,147,26,${glow})`;ctx.beginPath();ctx.arc(sx+ST/2,sy+ST/2,10+Math.sin(t*2)*3,0,Math.PI*2);ctx.fill();
     ctx.fillStyle=C.orange;ctx.font='16px serif';ctx.textAlign='center';ctx.fillText('🧩',sx+ST/2,sy+ST/2+5);
   }
+  else if(d.type==='citadel_tower'){
+    // Draw a tall tower above the citadel
+    ctx.fillStyle='#5A3818';ctx.fillRect(sx+ST/2-8,sy-ST*1.5,16,ST*1.5+ST*.4);
+    ctx.fillStyle='#6A4820';ctx.fillRect(sx+ST/2-10,sy-ST*1.5,20,8); // parapet
+    // Battlements
+    for(let i=0;i<3;i++){ctx.fillStyle='#5A3818';ctx.fillRect(sx+ST/2-9+i*7,sy-ST*1.5-6,5,8);}
+    // Window
+    ctx.fillStyle='#F7931A';const glow2=0.4+Math.sin(t*2)*0.2;
+    ctx.globalAlpha=glow2;ctx.fillRect(sx+ST/2-3,sy-ST*.9,6,8);ctx.globalAlpha=1;
+    ctx.fillStyle=C.orange;ctx.font='10px serif';ctx.textAlign='center';ctx.fillText('🗼',sx+ST/2,sy-ST*1.2);
+  }
 }
 
 function drawPlaced(item){
@@ -1592,7 +1677,7 @@ function drawRig(r){
 function drawHUD(){
   const p=14;
   // Main panel
-  panel(p,p,290,210);
+  panel(p,p,290,240);
   let y=p+18;
   // Sats counter with earning indicator
   const isEarning = rigs.some(r=>r.powered&&!r.oh&&r.dur>0);
@@ -1612,7 +1697,12 @@ function drawHUD(){
   ctx.fillStyle=C.phaseCol[econ.phase];ctx.font=`bold 15px ${FONT}`;ctx.fillText(econ.phaseN[econ.phase],p+12,y);y+=14;
   ctx.fillStyle=C.gray;ctx.font=`13px ${FONT}`;
   ctx.fillText(`Day ${econ.pd+1}/28 | Cycle ${econ.cycle+1} | ₿${econ.halvings}`,p+12,y);y+=14;
-  ctx.fillText(`Rigs: ${rigs.length} | Earned: ${fmt(player.totalEarned)}`,p+12,y);
+  ctx.fillText(`Rigs: ${rigs.length} | Earned: ${fmt(player.totalEarned)}`,p+12,y);y+=14;
+  // Citadel tier display
+  const ct=CITADEL_TIERS[citadelTier];
+  ctx.fillStyle=C.orange;ctx.font=`bold 13px ${FONT}`;
+  ctx.fillText(`${ct.icon} ${ct.name} Lv${citadelTier+1}`,p+12,y);
+  if(isNearHome()){ctx.fillStyle=C.gray;ctx.font=`11px ${FONT}`;ctx.fillText('[C] Citadel Menu',p+12,y+12);}
   
   // Hotbar
   const hbW=44,hbH=44,hbGap=4,hbN=10;
@@ -1635,7 +1725,7 @@ function drawHUD(){
   const cbY = canvas.height - 18;
   ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(0,cbY-4,canvas.width,22);
   ctx.fillStyle='#999';ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';
-  ctx.fillText('WASD:Move  E:Interact  R:Use/Plant  H:Harvest  I:Inventory  B:Shop  O:Quests  K:Skills  M:Music  ?:Help  P:Save',canvas.width/2,cbY+8);
+  ctx.fillText('WASD:Move  E:Interact  R:Use/Plant  H:Harvest  I:Inventory  B:Shop  C:Citadel  O:Quests  K:Skills  M:Music  ?:Help  P:Save',canvas.width/2,cbY+8);
   
   // Energy
   const ebW=100,ebX=canvas.width-ebW-p-10,ebY=hbY-18;
@@ -1742,6 +1832,7 @@ function drawHUD(){
   
   // Shop
   if(shopOpen) drawShop();
+  if(citadelMenuOpen) drawCitadelMenu();
   if(invOpen) drawInv();
   if(showSkills) drawSkillsPanel();
   if(showControls) drawControlsPanel();
@@ -1762,6 +1853,51 @@ function drawHUD(){
     ctx.fillText(pt.text,pt.x-cam.x,pt.y-cam.y);
   }
   ctx.textAlign='left';
+}
+
+function drawCitadelMenu(){
+  const w=480,h=360,x=(canvas.width-w)/2,y=(canvas.height-h)/2;
+  panel(x,y,w,h);
+  ctx.fillStyle=C.hud;ctx.font=`bold 20px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText('🏰 Citadel Upgrade',x+w/2,y+30);
+  
+  const cur=CITADEL_TIERS[citadelTier];
+  ctx.fillStyle='#CCC';ctx.font=`14px ${FONT}`;
+  ctx.fillText(`Current: ${cur.icon} ${cur.name} (Tier ${citadelTier})  — ${cur.rooms} room${cur.rooms>1?'s':''}`,x+w/2,y+54);
+  
+  // Tier list
+  CITADEL_TIERS.forEach((t,i)=>{
+    const ty=y+80+i*48;
+    const isCur=i===citadelTier;const isNext=i===citadelTier+1;const isDone=i<=citadelTier;
+    ctx.fillStyle=isCur?'rgba(247,147,26,.2)':isNext?'rgba(247,147,26,.08)':'rgba(20,20,25,.6)';
+    rr(x+12,ty,w-24,40,4);
+    ctx.strokeStyle=isCur?C.hud:isNext?'rgba(247,147,26,.4)':'#333';ctx.lineWidth=isCur?2:1;ctx.stroke();
+    // Icon + name
+    ctx.fillStyle=isDone?C.green:isNext?C.white:'#666';ctx.font=`bold 15px ${FONT}`;ctx.textAlign='left';
+    ctx.fillText(`${t.icon} ${t.name}`,x+20,ty+26);
+    // Rooms info
+    ctx.fillStyle='#999';ctx.font=`12px ${FONT}`;
+    ctx.fillText(t.desc,x+140,ty+26);
+    // Cost / status
+    ctx.textAlign='right';
+    if(i===0||isDone){ctx.fillStyle=C.green;ctx.font=`bold 13px ${FONT}`;ctx.fillText(i===0?'✅ Free':isCur?'✅ Current':'✅ Done',x+w-20,ty+26);}
+    else{const canAfford=player.wallet>=t.cost;ctx.fillStyle=canAfford?C.green:C.red;ctx.font=`bold 13px ${FONT}`;ctx.fillText(`${fmt(t.cost)} sats`,x+w-20,ty+26);}
+    ctx.textAlign='left';
+  });
+  
+  // Action prompt
+  const nextTier = citadelTier < CITADEL_TIERS.length-1 ? CITADEL_TIERS[citadelTier+1] : null;
+  const sy=y+h-40;
+  if(nextTier){
+    const canAfford=player.wallet>=nextTier.cost;
+    ctx.fillStyle=canAfford?C.gold:C.red;ctx.font=`bold 14px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(canAfford?`[Enter/E] Upgrade to ${nextTier.icon} ${nextTier.name} for ${fmt(nextTier.cost)} sats`:`Need ${fmt(nextTier.cost-player.wallet)} more sats to upgrade`,x+w/2,sy+6);
+  } else {
+    ctx.fillStyle=C.gold;ctx.font=`bold 14px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText('🗼 Maximum tier reached! You are a Citadel lord.',x+w/2,sy+6);
+  }
+  ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText('[C] or [Esc] Close',x+w/2,y+h-10);
 }
 
 function drawShop(){
@@ -2057,6 +2193,14 @@ function draw(){
   for(const e of entities)e.draw();
   // NPC hearts
   for(const npc of npcs) drawNPCHearts(npc);
+  
+  // Citadel door hint
+  if(isNearHome()&&!citadelMenuOpen){
+    const t=CITADEL_TIERS[citadelTier];
+    const doorSx=homeX*ST-cam.x+ST/2, doorSy=(homeY+Math.floor(t.h/2)+1)*ST-cam.y-ST*.6;
+    ctx.fillStyle='rgba(247,147,26,0.85)';ctx.font=`bold 13px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText('[C] Citadel Upgrade Menu',doorSx,doorSy);
+  }
   
   // Day/night
   const dn=getDayOv();
