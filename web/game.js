@@ -1648,8 +1648,8 @@ function drawHUD(){
     }
     
     // Message
-    ctx.fillStyle=C.white;ctx.font=`bold 15px ${FONT}`;ctx.textAlign='center';
-    wrapText(tut.msg,canvas.width/2-tw/2+20,ty+32,tw-40,18);
+    ctx.fillStyle=C.white;ctx.font=`bold 14px ${FONT}`;ctx.textAlign='center';
+    wrapText(tut.msg,canvas.width/2,ty+32,tw-60,18);
     
     // Step counter
     ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;ctx.textAlign='right';
@@ -1683,10 +1683,17 @@ function drawHUD(){
   }
   
   // Dialogue
-  if(dlg){const dw=Math.min(650,canvas.width-40),dh=100,dx=(canvas.width-dw)/2,dy=hbY-dh-20;
-    panel(dx,dy,dw,dh);ctx.fillStyle=C.hud;ctx.font=`bold 14px ${FONT}`;ctx.textAlign='left';
-    ctx.fillText(dlg.name,dx+16,dy+24);ctx.fillStyle=C.white;ctx.font=`15px ${FONT}`;
-    wrapText(dlg.text,dx+16,dy+44,dw-32,16);ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;ctx.textAlign='right';ctx.fillText('[E] Close',dx+dw-12,dy+dh-8);}
+  if(dlg){
+    const dw=Math.min(600,canvas.width-60),dh=110;
+    const dx=(canvas.width-dw)/2,dy=hbY-dh-24;
+    panel(dx,dy,dw,dh);
+    ctx.fillStyle=C.hud;ctx.font=`bold 16px ${FONT}`;ctx.textAlign='left';
+    ctx.fillText(dlg.name,dx+16,dy+26);
+    ctx.fillStyle=C.white;ctx.font=`14px ${FONT}`;ctx.textAlign='left';
+    wrapText(dlg.text,dx+16,dy+48,dw-40,18);
+    ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;ctx.textAlign='right';
+    ctx.fillText('[E] Close',dx+dw-16,dy+dh-10);
+  }
   
   // Objectives panel
   if(showObjectives){
@@ -1738,26 +1745,77 @@ function drawHUD(){
 }
 
 function drawShop(){
-  const w=520,h=420,x=(canvas.width-w)/2,y=(canvas.height-h)/2;panel(x,y,w,h);
-  ctx.fillStyle=C.hud;ctx.font=`bold 18px ${FONT}`;ctx.textAlign='center';ctx.fillText("⛏️ Ruby's Hardware Shop",x+w/2,y+28);
-  const tw=w/2-20;ctx.fillStyle=shopMode==='buy'?'rgba(247,147,26,.15)':'rgba(30,30,30,.5)';ctx.fillRect(x+10,y+38,tw,24);
-  ctx.fillStyle=shopMode==='sell'?'rgba(247,147,26,.15)':'rgba(30,30,30,.5)';ctx.fillRect(x+w/2+10,y+38,tw,24);
-  ctx.fillStyle=shopMode==='buy'?C.hud:C.gray;ctx.font=`bold 15px ${FONT}`;ctx.textAlign='center';ctx.fillText('BUY (←→)',x+10+tw/2,y+54);
-  ctx.fillStyle=shopMode==='sell'?C.hud:C.gray;ctx.fillText('SELL (←→)',x+w/2+10+tw/2,y+54);
-  ctx.fillStyle=C.hud;ctx.font=`15px ${FONT}`;ctx.fillText(`Balance: ${fmt(player.wallet)} sats`,x+w/2,y+78);
-  const mult=marketMult();ctx.fillStyle=mult>1?C.red:C.green;ctx.font=`13px ${FONT}`;ctx.fillText(`Market: ${mult>1?'▲':'▼'} ${Math.round(mult*100)}%`,x+w/2,y+92);
-  ctx.textAlign='left';const ly=y+108;
-  if(shopMode==='buy'){SHOP_LIST.forEach((id,i)=>{const it=ITEMS[id],pr=Math.ceil(it.buy*mult),iy=ly+i*28;if(iy>y+h-30)return;
-    if(i===shopCur){ctx.fillStyle='rgba(247,147,26,.12)';ctx.fillRect(x+8,iy-8,w-16,26);}
-    ctx.font='16px serif';ctx.fillStyle=C.white;ctx.fillText(it.icon,x+16,iy+8);ctx.font=`12px ${FONT}`;
-    ctx.fillStyle=i===shopCur?C.hud:C.white;ctx.fillText(it.name,x+42,iy+4);ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;ctx.fillText(it.desc,x+42,iy+16);
-    ctx.fillStyle=player.wallet>=pr?C.green:C.red;ctx.font=`bold 12px ${FONT}`;ctx.textAlign='right';ctx.fillText(`${fmt(pr)}`,x+w-16,iy+8);ctx.textAlign='left';});}
-  else{const sl=inv.filter(s=>s&&ITEMS[s.id].sell>0);if(!sl.length){ctx.fillStyle=C.gray;ctx.font=`15px ${FONT}`;ctx.textAlign='center';ctx.fillText('Nothing to sell!',x+w/2,ly+30);ctx.textAlign='left';}
-    sl.forEach((s,i)=>{const it=ITEMS[s.id],pr=Math.ceil(it.sell*mult),iy=ly+i*28;if(iy>y+h-30)return;
-      if(i===shopCur){ctx.fillStyle='rgba(247,147,26,.12)';ctx.fillRect(x+8,iy-8,w-16,26);}
-      ctx.font='16px serif';ctx.fillStyle=C.white;ctx.fillText(it.icon,x+16,iy+8);ctx.font=`12px ${FONT}`;ctx.fillStyle=i===shopCur?C.hud:C.white;ctx.fillText(`${it.name} x${s.qty}`,x+42,iy+8);
-      ctx.fillStyle=C.green;ctx.font=`bold 12px ${FONT}`;ctx.textAlign='right';ctx.fillText(`+${fmt(pr)}`,x+w-16,iy+8);ctx.textAlign='left';});}
-  ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;ctx.textAlign='center';ctx.fillText('↑↓:Nav  Enter/E:Buy/Sell  ←→:Tab  B/Esc:Close',x+w/2,y+h-10);
+  const w=560,h=460,x=(canvas.width-w)/2,y=(canvas.height-h)/2;panel(x,y,w,h);
+  ctx.fillStyle=C.hud;ctx.font=`bold 18px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText("⛏️ Ruby's Hardware Shop",x+w/2,y+28);
+  
+  // Tabs
+  const tw=w/2-20;
+  ctx.fillStyle=shopMode==='buy'?'rgba(247,147,26,.15)':'rgba(30,30,30,.5)';ctx.fillRect(x+10,y+40,tw,26);
+  ctx.fillStyle=shopMode==='sell'?'rgba(247,147,26,.15)':'rgba(30,30,30,.5)';ctx.fillRect(x+w/2+10,y+40,tw,26);
+  ctx.fillStyle=shopMode==='buy'?C.hud:C.gray;ctx.font=`bold 14px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText('BUY (←→)',x+10+tw/2,y+57);
+  ctx.fillStyle=shopMode==='sell'?C.hud:C.gray;
+  ctx.fillText('SELL (←→)',x+w/2+10+tw/2,y+57);
+  
+  // Balance & market
+  ctx.fillStyle=C.hud;ctx.font=`bold 14px ${FONT}`;
+  ctx.fillText(`₿ ${fmt(player.wallet)} sats`,x+w/2,y+82);
+  const mult=marketMult();
+  ctx.fillStyle=mult>1?C.red:C.green;ctx.font=`12px ${FONT}`;
+  ctx.fillText(`Market: ${mult>1?'▲':'▼'} ${Math.round(mult*100)}%`,x+w/2,y+96);
+  
+  // Item list
+  ctx.textAlign='left';
+  const ly=y+112;
+  const rowH=32; // taller rows
+  
+  if(shopMode==='buy'){
+    SHOP_LIST.forEach((id,i)=>{
+      const it=ITEMS[id],pr=Math.ceil(it.buy*mult);
+      const iy=ly+i*rowH;
+      if(iy>y+h-35)return;
+      
+      // Selection highlight
+      if(i===shopCur){ctx.fillStyle='rgba(247,147,26,.12)';ctx.fillRect(x+8,iy-4,w-16,rowH-2);}
+      
+      // Icon
+      ctx.font='18px serif';ctx.fillStyle=C.white;ctx.fillText(it.icon,x+14,iy+14);
+      
+      // Name + short desc
+      ctx.font=`bold 13px ${FONT}`;ctx.fillStyle=i===shopCur?C.hud:C.white;
+      ctx.fillText(it.name,x+42,iy+10);
+      
+      // Description (truncated to fit)
+      ctx.fillStyle='#777';ctx.font=`11px ${FONT}`;
+      let desc=it.desc;
+      while(ctx.measureText(desc).width>w-200 && desc.length>10) desc=desc.slice(0,-4)+'...';
+      ctx.fillText(desc,x+42,iy+24);
+      
+      // Price (right aligned)
+      ctx.fillStyle=player.wallet>=pr?C.green:C.red;
+      ctx.font=`bold 13px ${FONT}`;ctx.textAlign='right';
+      ctx.fillText(`${fmt(pr)} sats`,x+w-14,iy+14);
+      ctx.textAlign='left';
+    });
+  } else {
+    const sl=inv.filter(s=>s&&ITEMS[s.id].sell>0);
+    if(!sl.length){ctx.fillStyle=C.gray;ctx.font=`14px ${FONT}`;ctx.textAlign='center';ctx.fillText('Nothing to sell!',x+w/2,ly+30);ctx.textAlign='left';}
+    sl.forEach((s,i)=>{
+      const it=ITEMS[s.id],pr=Math.ceil(it.sell*mult);
+      const iy=ly+i*rowH;if(iy>y+h-35)return;
+      if(i===shopCur){ctx.fillStyle='rgba(247,147,26,.12)';ctx.fillRect(x+8,iy-4,w-16,rowH-2);}
+      ctx.font='18px serif';ctx.fillStyle=C.white;ctx.fillText(it.icon,x+14,iy+14);
+      ctx.font=`bold 13px ${FONT}`;ctx.fillStyle=i===shopCur?C.hud:C.white;
+      ctx.fillText(`${it.name} x${s.qty}`,x+42,iy+14);
+      ctx.fillStyle=C.green;ctx.font=`bold 13px ${FONT}`;ctx.textAlign='right';
+      ctx.fillText(`+${fmt(pr)} sats`,x+w-14,iy+14);ctx.textAlign='left';
+    });
+  }
+  
+  // Footer
+  ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText('↑↓ Navigate | Enter/E Buy/Sell | ←→ Switch Tab | B/Esc Close',x+w/2,y+h-12);
 }
 
 function drawInv(){
@@ -1773,7 +1831,7 @@ function drawInv(){
       if(sl.qty>1){ctx.fillStyle=C.white;ctx.font=`bold 13px ${FONT}`;ctx.fillText(sl.qty,sx+ss-10,sy+ss-6);}}}
   const sel=inv[selSlot],dx=x+cols*(ss+gap)+gap+10,dy=y+36;
   if(sel){const it=ITEMS[sel.id];ctx.fillStyle=C.hud;ctx.font=`bold 14px ${FONT}`;ctx.textAlign='left';
-    ctx.fillText(`${it.icon} ${it.name}`,dx,dy+16);ctx.fillStyle='#CCC';ctx.font=`13px ${FONT}`;wrapText(it.desc,dx,dy+36,160,14);
+    ctx.fillText(`${it.icon} ${it.name}`,dx,dy+16);ctx.fillStyle='#CCC';ctx.font=`12px ${FONT}`;ctx.textAlign='left';wrapText(it.desc,dx,dy+36,155,15);
     ctx.fillStyle=C.gray;if(it.buy>0)ctx.fillText(`Buy: ${fmt(it.buy)}`,dx,dy+80);if(it.sell>0)ctx.fillText(`Sell: ${fmt(it.sell)}`,dx,dy+94);ctx.fillText(`Qty: ${sel.qty}`,dx,dy+108);}
   ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;ctx.textAlign='center';ctx.fillText('1-9,0:Select  I/Tab/Esc:Close',x+w/2,y+h-10);
 }
@@ -1788,7 +1846,19 @@ function drawTutArrow(x,y,dir){
   else{ctx.moveTo(x,y-pulse);ctx.lineTo(x-10,y+16);ctx.lineTo(x+10,y+16);}
   ctx.closePath();ctx.fill();
 }
-function wrapText(text,x,y,mw,lh){const w=text.split(' ');let l='';for(const word of w){const t=l+word+' ';if(ctx.measureText(t).width>mw&&l){ctx.fillText(l.trim(),x,y);l=word+' ';y+=lh;}else l=t;}if(l.trim())ctx.fillText(l.trim(),x,y);}
+function wrapText(text,x,y,mw,lh){
+  // Respects current textAlign (left or center)
+  const align = ctx.textAlign;
+  const words=text.split(' ');let line='';
+  for(const word of words){
+    const test=line+word+' ';
+    if(ctx.measureText(test).width>mw && line){
+      ctx.fillText(line.trim(),x,y);
+      line=word+' ';y+=lh;
+    } else { line=test; }
+  }
+  if(line.trim()) ctx.fillText(line.trim(),x,y);
+}
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();ctx.fill();}
 function fmt(n){return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,',');}
 
