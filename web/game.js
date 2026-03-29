@@ -1933,9 +1933,17 @@ function update(dt) {
     a.animTimer+=dt;if(a.animTimer>0.3){a.animTimer=0;a.animFrame=(a.animFrame+1)%2;}
   }
 
-  // Camera (smooth)
-  cam.x+=(player.x*SCALE-canvas.width/2-cam.x)*3.5*dt;
-  cam.y+=(player.y*SCALE-canvas.height/2-cam.y)*3.5*dt;
+  // Camera
+  if (interior) {
+    // Snap camera to center interior (no smooth pan for small rooms)
+    const targetX = (interior.w * TILE * SCALE) / 2 - canvas.width / 2;
+    const targetY = (interior.h * TILE * SCALE) / 2 - canvas.height / 2;
+    cam.x = targetX; cam.y = targetY;
+  } else {
+    // Smooth follow in overworld
+    cam.x+=(player.x*SCALE-canvas.width/2-cam.x)*3.5*dt;
+    cam.y+=(player.y*SCALE-canvas.height/2-cam.y)*3.5*dt;
+  }
 
   // Particles & notifs
   for(let i=particles.length-1;i>=0;i--){particles[i].life-=dt;particles[i].y+=particles[i].vy*dt;if(particles[i].life<=0)particles.splice(i,1);}
@@ -3239,11 +3247,17 @@ function draw(){
   const mapW = interior ? interior.w : MAP_W;
   const mapH = interior ? interior.h : MAP_H;
 
-  const sX=Math.max(0,Math.floor(cam.x/ST)-1),sY=Math.max(0,Math.floor(cam.y/ST)-1);
-  const eX=Math.min(mapW,sX+Math.ceil(canvas.width/ST)+3),eY=Math.min(mapH,sY+Math.ceil(canvas.height/ST)+3);
+  let sX,sY,eX,eY;
+  if(interior){
+    // Render all interior tiles (small rooms, just draw everything)
+    sX=0;sY=0;eX=mapW;eY=mapH;
+  }else{
+    sX=Math.max(0,Math.floor(cam.x/ST)-1);sY=Math.max(0,Math.floor(cam.y/ST)-1);
+    eX=Math.min(mapW,sX+Math.ceil(canvas.width/ST)+3);eY=Math.min(mapH,sY+Math.ceil(canvas.height/ST)+3);
+  }
 
   // Tiles
-  for(let y=sY;y<eY;y++)for(let x=sX;x<eX;x++)drawTile(x,y,activeMap[y][x]);
+  for(let y=sY;y<eY;y++)for(let x=sX;x<eX;x++){if(activeMap[y]&&activeMap[y][x]!=null)drawTile(x,y,activeMap[y][x]);}
 
   // Sort all entities by Y for depth
   const entities = [];
@@ -3282,7 +3296,8 @@ function draw(){
   const dn=getDayOv();
   if(dn.a>0){ctx.fillStyle=`rgba(${dn.r},${dn.g},${dn.b},${dn.a})`;ctx.fillRect(0,0,canvas.width,canvas.height);}
 
-  // Weather overlay
+  // Weather overlay (outdoors only)
+  if(!interior){
   const wInfo = WEATHER_TYPES[weather.current];
   if (wInfo.overlay) { ctx.fillStyle = wInfo.overlay; ctx.fillRect(0, 0, canvas.width, canvas.height); }
   // Lightning flash
@@ -3332,6 +3347,7 @@ function draw(){
       ctx.globalAlpha = 1;
     }
   }
+  } // end !interior weather/ambient block
 
   drawHUD();
 
