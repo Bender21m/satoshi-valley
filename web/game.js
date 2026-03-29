@@ -380,6 +380,7 @@ let showObjectives = false;
 let showSkills = false;
 let minimapOpen = true;
 let interior = null; // null = overworld, or {type, map, w, h, furniture, doorX, returnX, returnY}
+let doorCooldown = 0; // prevent instant re-entry after exiting
 let transition = null; // {type:'fadeIn'|'fadeOut', timer, duration, callback}
 const INTERIOR_MAPS = {}; // generated once, keyed by building type
 
@@ -1643,7 +1644,8 @@ function update(dt) {
   }
   
   // ---- BUILDING ENTRY (overworld) ----
-  if (!interior && !transition) {
+  if(doorCooldown>0) doorCooldown-=dt;
+  if (!interior && !transition && doorCooldown<=0) {
     const ptx = Math.floor(player.x / TILE), pty = Math.floor(player.y / TILE);
     if (map[pty] && (map[pty][ptx] === T.FLOOR || map[pty][ptx] === T.SHOP)) {
       let buildingType = null;
@@ -1656,7 +1658,7 @@ function update(dt) {
       else if (ptx>=homeX+12 && ptx<homeX+20 && pty>=homeY-10 && pty<homeY-4) buildingType='hall';
 
       if (buildingType && INTERIOR_MAPS[buildingType]) {
-        const returnX = player.x, returnY = player.y + TILE;
+        const returnX = player.x, returnY = player.y + TILE * 3; // well outside building
         startTransition('fadeOut', 0.4, () => {
           const im = INTERIOR_MAPS[buildingType];
           interior = {type:buildingType, map:im.map, w:im.w, h:im.h, furniture:im.furniture, doorX:im.doorX, returnX, returnY};
@@ -1678,6 +1680,7 @@ function update(dt) {
       const rx = interior.returnX, ry = interior.returnY;
       startTransition('fadeOut', 0.4, () => {
         interior = null;
+        doorCooldown = 1.5; // prevent instant re-entry
         player.x = rx; player.y = ry;
         cam.x = player.x * SCALE - canvas.width / 2;
         cam.y = player.y * SCALE - canvas.height / 2;
