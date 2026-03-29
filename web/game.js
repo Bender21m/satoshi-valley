@@ -2245,69 +2245,544 @@ function drawDecor(d) {
     }
   }
   else if(d.type==='roof'){
+    // PATH 2 TOOLS for custom pixel art buildings:
+    // - Aseprite (best pixel art editor, used by Stardew Valley dev)
+    // - Piskel (free, browser-based pixel art editor at piskelapp.com)
+    // - Libresprite (free Aseprite fork)
+    // - Tiled (free tilemap editor for laying out sprite sheets)
+    // - Lospec (lospec.com — palettes, tutorials, community)
+    // To use custom PNGs: create 16x16 or 32x32 sprites, load with new Image(),
+    // then draw with ctx.drawImage() instead of fillRect in this section.
+
     // Full building exterior (covers interior when viewed from overworld)
     if (interior) return; // don't draw roofs when inside a building
-    const rw = d.w * ST, bh = (d.bh || 4) * ST; // bh = building height in tiles
+    const rw = d.w * ST, bh = (d.bh || 4) * ST;
     const rx = sx, ry = sy;
     if(sx+rw<-ST||sx>canvas.width+ST||ry>canvas.height+ST||ry+bh+ST<0)return;
-    
-    // Building walls (cover the interior)
-    const wallCol = {home:'#6A4430',shed:'#5A5A4A',shop:'#7A5A30',tavern:'#5A3A1A',hall:'#4A4A5A'}[d.label]||'#6A4430';
-    ctx.fillStyle=wallCol;ctx.fillRect(rx,ry+ST,rw,bh-ST);
-    // Wall detail — horizontal planks
-    ctx.fillStyle='rgba(0,0,0,0.1)';
-    for(let i=0;i<Math.floor(bh/ST)-1;i++){ctx.fillRect(rx,ry+ST+i*ST+ST-2,rw,2);}
-    // Wall detail — vertical beams
-    ctx.fillStyle='rgba(0,0,0,0.08)';
-    ctx.fillRect(rx+2,ry+ST,4,bh-ST);ctx.fillRect(rx+rw-6,ry+ST,4,bh-ST);
-    
-    // Windows
-    const winCol='rgba(200,220,255,0.3)';const winFrame='#4A3018';
-    if(d.w>=6){
+
+    // Shared helpers
+    const hr = getHour();
+    const isNight = hr < 6 || hr > 20;
+    const winGlow = isNight ? 'rgba(255,210,100,0.45)' : 'rgba(200,225,255,0.28)';
+    const winGlowAmber = isNight ? 'rgba(255,180,60,0.55)' : 'rgba(220,185,100,0.3)';
+    // Ground shadow under building
+    ctx.fillStyle='rgba(0,0,0,0.18)';
+    ctx.beginPath();ctx.ellipse(rx+rw/2,ry+bh+4,rw*0.48,6,0,0,Math.PI*2);ctx.fill();
+
+    // ── HOME ──────────────────────────────────────────────────────────────
+    if(d.label==='home'){
+      // Foundation — dark stone strip
+      ctx.fillStyle='#4A3A28';ctx.fillRect(rx-2,ry+bh-8,rw+4,8);
+      ctx.fillStyle='#5A4A34';
+      for(let i=0;i<Math.floor(rw/12);i++){ctx.fillRect(rx+i*12,ry+bh-8,10,3);}
+
+      // Log walls — warm brown base
+      ctx.fillStyle='#7A5030';ctx.fillRect(rx,ry+ST,rw,bh-ST-8);
+      // Horizontal log grain lines
+      ctx.fillStyle='rgba(0,0,0,0.12)';
+      for(let i=0;i<Math.floor((bh-ST)/8);i++){ctx.fillRect(rx,ry+ST+i*8+6,rw,2);}
+      // Subtle lighter highlight on each log
+      ctx.fillStyle='rgba(255,200,130,0.07)';
+      for(let i=0;i<Math.floor((bh-ST)/8);i++){ctx.fillRect(rx,ry+ST+i*8,rw,3);}
+      // Knot details
+      ctx.fillStyle='rgba(0,0,0,0.18)';
+      ctx.beginPath();ctx.ellipse(rx+rw*0.25,ry+ST+bh*0.35,4,3,0,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.ellipse(rx+rw*0.72,ry+ST+bh*0.55,3,2,0,0,Math.PI*2);ctx.fill();
+      // Corner beams
+      ctx.fillStyle='#5A3818';ctx.fillRect(rx,ry+ST,5,bh-ST-8);ctx.fillRect(rx+rw-5,ry+ST,5,bh-ST-8);
+
+      // Stone chimney — right side
+      const chx=rx+rw-18,chy=ry-ST*0.6;
+      ctx.fillStyle='#5A5050';ctx.fillRect(chx,chy,14,ST*0.6+ST+4);
+      ctx.fillStyle='#4A4040';
+      for(let i=0;i<6;i++){
+        ctx.fillRect(chx+(i%2===0?0:2),chy+i*8,12,6);
+        ctx.fillStyle='rgba(0,0,0,0.15)';ctx.fillRect(chx,chy+i*8+6,14,2);ctx.fillStyle='#4A4040';
+      }
+      ctx.fillStyle='#3A3030';ctx.fillRect(chx-2,chy-4,18,5); // cap
+      // Chimney smoke (animated)
+      const sa=0.25+Math.sin(t*1.8)*0.1;
+      ctx.fillStyle=`rgba(190,190,190,${sa})`;
+      ctx.beginPath();ctx.arc(chx+7+Math.sin(t)*3,chy-12-Math.sin(t*1.3)*5,4+Math.sin(t*2)*1.5,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=`rgba(200,200,200,${sa*0.7})`;
+      ctx.beginPath();ctx.arc(chx+6+Math.sin(t+1)*4,chy-22-Math.sin(t*1.1)*7,3+Math.sin(t*2.5)*1,0,Math.PI*2);ctx.fill();
+
+      // Left window with flower box
+      const ww=ST-4,wh=ST-10;
+      const wx1=rx+ST*0.6;const wy=ry+ST+10;
+      ctx.fillStyle='#5A3818';ctx.fillRect(wx1-3,wy-3,ww+6,wh+6);
+      ctx.fillStyle=winGlow;ctx.fillRect(wx1,wy,ww,wh);
+      ctx.fillStyle='rgba(255,255,255,0.12)';ctx.fillRect(wx1,wy,ww/2,wh); // glare
+      ctx.fillStyle='#5A3818';ctx.fillRect(wx1+ww/2-1,wy,2,wh);ctx.fillRect(wx1,wy+wh/2-1,ww,2); // cross
+      // Flower box left
+      ctx.fillStyle='#6A4020';ctx.fillRect(wx1-3,wy+wh+3,ww+6,7);
+      ctx.fillStyle='#3A6020';ctx.fillRect(wx1,wy+wh+4,ww,4); // soil
+      // Flowers: red & yellow pixels
+      const flx=[wx1+3,wx1+8,wx1+14,wx1+20,wx1+26];
+      const flc=['#E04040','#F0C020','#E04040','#F0C020','#E04040'];
+      for(let i=0;i<flx.length;i++){ctx.fillStyle=flc[i];ctx.fillRect(flx[i],wy+wh+3,3,4);}
+
+      // Right window with flower box (only if wide enough)
+      if(d.w>=6){
+        const wx2=rx+rw-ST*0.6-ww;
+        ctx.fillStyle='#5A3818';ctx.fillRect(wx2-3,wy-3,ww+6,wh+6);
+        ctx.fillStyle=winGlow;ctx.fillRect(wx2,wy,ww,wh);
+        ctx.fillStyle='rgba(255,255,255,0.12)';ctx.fillRect(wx2,wy,ww/2,wh);
+        ctx.fillStyle='#5A3818';ctx.fillRect(wx2+ww/2-1,wy,2,wh);ctx.fillRect(wx2,wy+wh/2-1,ww,2);
+        ctx.fillStyle='#6A4020';ctx.fillRect(wx2-3,wy+wh+3,ww+6,7);
+        ctx.fillStyle='#3A6020';ctx.fillRect(wx2,wy+wh+4,ww,4);
+        for(let i=0;i<flx.length;i++){ctx.fillStyle=flc[i];ctx.fillRect(wx2+3+i*5-wx1+wx1%5,wy+wh+3,3,4);}
+      }
+
+      // Door — warm wood, ₿ carved
+      const doorW=ST-2,doorH=ST+10;
+      const doorX=rx+Math.floor(rw/2)-doorW/2;const doorY=ry+bh-doorH;
+      ctx.fillStyle='#3A2010';ctx.fillRect(doorX-3,doorY,doorW+6,doorH+1);
+      ctx.fillStyle='#7A5030';ctx.fillRect(doorX,doorY+2,doorW,doorH-2);
+      // Door panels
+      ctx.fillStyle='rgba(0,0,0,0.15)';ctx.fillRect(doorX+4,doorY+6,doorW-8,doorH/2-8);
+      ctx.fillRect(doorX+4,doorY+doorH/2+2,doorW-8,doorH/2-10);
+      // ₿ symbol carved
+      ctx.fillStyle='#5A3818';ctx.font='bold 10px '+FONT;ctx.textAlign='center';
+      ctx.fillText('₿',doorX+doorW/2,doorY+doorH/2+4);
+      // Handle
+      ctx.fillStyle='#C09040';ctx.fillRect(doorX+doorW-9,doorY+doorH/2-2,4,8);
+      // Porch step
+      ctx.fillStyle='#5A4A30';ctx.fillRect(doorX-6,ry+bh-4,doorW+12,6);
+      // Welcome mat
+      ctx.fillStyle='#8A5A30';ctx.fillRect(doorX-4,ry+bh+1,doorW+8,5);
+      ctx.fillStyle='rgba(255,180,80,0.3)';
+      for(let i=0;i<3;i++){ctx.fillRect(doorX-2+i*8,ry+bh+2,6,3);}
+
+      // Lantern — left of door
+      const lx=doorX-14,ly=doorY+doorH/2-4;
+      ctx.fillStyle='#5A4020';ctx.fillRect(lx,ly,4,16); // post
+      ctx.fillStyle='#6A5030';ctx.fillRect(lx-3,ly-8,10,9); // lantern body
+      ctx.fillStyle='rgba(255,200,80,0.7)';ctx.fillRect(lx-1,ly-6,6,5); // flame
+      if(isNight){
+        ctx.fillStyle='rgba(255,200,80,0.15)';
+        ctx.beginPath();ctx.arc(lx+2,ly-3,12,0,Math.PI*2);ctx.fill();
+      }
+
+      // Pitched roof — shingle texture
+      ctx.fillStyle='#8A3820';ctx.fillRect(rx-8,ry-6,rw+16,ST+10);
+      // Shingle rows — alternating slightly different shades
+      for(let row=0;row<4;row++){
+        ctx.fillStyle=row%2===0?'#9A4028':'#7A3018';
+        const rowY=ry-6+row*(ST+10)/4;
+        for(let col=0;col<Math.ceil((rw+16)/12);col++){
+          ctx.fillRect(rx-8+col*12+(row%2)*6,rowY,11,Math.floor((ST+10)/4)-1);
+        }
+      }
+      // Roof ridge
+      ctx.fillStyle='#5A2010';ctx.fillRect(rx-8,ry-8,rw+16,4);
+      // Eaves shadow
+      ctx.fillStyle='rgba(0,0,0,0.22)';ctx.fillRect(rx-10,ry+ST+3,rw+20,5);
+      // Slight overhang shadow on walls
+      ctx.fillStyle='rgba(0,0,0,0.1)';ctx.fillRect(rx,ry+ST+8,rw,8);
+    }
+
+    // ── SHOP (Ruby's Hardware) ────────────────────────────────────────────
+    else if(d.label==='shop'){
+      // Foundation
+      ctx.fillStyle='#3A2A18';ctx.fillRect(rx-2,ry+bh-8,rw+4,8);
+
+      // Darker wood walls with metal reinforcement
+      ctx.fillStyle='#5A3A18';ctx.fillRect(rx,ry+ST,rw,bh-ST-8);
+      // Horizontal plank lines
+      ctx.fillStyle='rgba(0,0,0,0.13)';
+      for(let i=0;i<Math.floor((bh-ST)/10);i++){ctx.fillRect(rx,ry+ST+i*10+8,rw,2);}
+      // Metal corner brackets (grey squares)
+      ctx.fillStyle='#888880';
+      ctx.fillRect(rx,ry+ST,6,6);ctx.fillRect(rx+rw-6,ry+ST,6,6);
+      ctx.fillRect(rx,ry+bh-ST,6,6);ctx.fillRect(rx+rw-6,ry+bh-ST,6,6);
+      // Metal strip reinforcements
+      ctx.fillStyle='#707068';ctx.fillRect(rx,ry+ST+bh*0.4-ST,rw,3);
+
+      // Large display window LEFT — with awning
+      const dwinW=ST+8,dwinH=ST-6;
+      const dwinX=rx+8,dwinY=ry+ST+14;
+      // Awning — orange striped
+      ctx.fillStyle='#C06010';ctx.fillRect(dwinX-4,dwinY-12,dwinW+8,10);
+      for(let i=0;i<Math.ceil((dwinW+8)/8);i++){
+        ctx.fillStyle=i%2===0?'#E07818':'#A05010';
+        ctx.fillRect(dwinX-4+i*8,dwinY-12,8,10);
+      }
+      ctx.fillStyle='#8A4010';ctx.fillRect(dwinX-4,dwinY-2,dwinW+8,2);
+      // Window frame
+      ctx.fillStyle='#8A6030';ctx.fillRect(dwinX-3,dwinY-3,dwinW+6,dwinH+6);
+      ctx.fillStyle='rgba(180,210,255,0.25)';ctx.fillRect(dwinX,dwinY,dwinW,dwinH);
+      // Display items inside window (colored squares representing stock)
+      const itemColors=['#E04040','#40A040','#4080E0','#E0A020','#A040A0'];
+      for(let i=0;i<5;i++){
+        ctx.fillStyle=itemColors[i];
+        ctx.fillRect(dwinX+4+i*(dwinW-8)/5,dwinY+dwinH-14,Math.floor((dwinW-10)/5),8);
+      }
+      ctx.fillStyle='rgba(255,255,255,0.12)';ctx.fillRect(dwinX,dwinY,dwinW/2,dwinH);
+
+      // Hanging sign on chain — '₿ RUBY'S'
+      const sigW=52,sigH=14;const sigX=rx+rw/2-sigW/2,sigY=ry+4;
+      ctx.fillStyle='#555540';ctx.fillRect(sigX+sigW*0.25,sigY-8,2,8);ctx.fillRect(sigX+sigW*0.72,sigY-8,2,8);
+      ctx.fillStyle='#3A2A10';ctx.fillRect(sigX,sigY,sigW,sigH);
+      ctx.fillStyle='#C06010';ctx.font='bold 8px '+FONT;ctx.textAlign='center';
+      ctx.fillText("₿ RUBY'S",sigX+sigW/2,sigY+10);
+
+      // Orange-trimmed door — RIGHT side
+      const doorW2=ST,doorH2=ST+10;
+      const doorX2=rx+rw-ST-10;const doorY2=ry+bh-doorH2;
+      ctx.fillStyle='#C06010';ctx.fillRect(doorX2-4,doorY2,doorW2+8,doorH2+1); // orange trim
+      ctx.fillStyle='#5A3010';ctx.fillRect(doorX2,doorY2+2,doorW2,doorH2-2);
+      ctx.fillStyle='rgba(0,0,0,0.1)';ctx.fillRect(doorX2+4,doorY2+5,doorW2-8,doorH2/2-6);
+      // 'OPEN' sign on door
+      ctx.fillStyle='#60C040';ctx.fillRect(doorX2+3,doorY2+8,doorW2-6,9);
+      ctx.fillStyle='#1A3010';ctx.font='bold 6px '+FONT;ctx.textAlign='center';
+      ctx.fillText('OPEN',doorX2+doorW2/2,doorY2+16);
+      // Handle
+      ctx.fillStyle='#C09040';ctx.fillRect(doorX2+6,doorY2+doorH2/2-2,4,8);
+      // Door mat
+      ctx.fillStyle='#8A5020';ctx.fillRect(doorX2-4,ry+bh+1,doorW2+8,5);
+
+      // Pickaxe decoration left of door
+      const pax=doorX2-22,pay=ry+bh-24;
+      ctx.fillStyle='#887870';ctx.fillRect(pax,pay,4,16); // handle
+      ctx.fillStyle='#A09088';ctx.fillRect(pax-4,pay,12,4); // head
+      ctx.fillStyle='#7A6858';ctx.fillRect(pax-4,pay,4,4); // tip
+
+      // Copper/orange-brown roof
+      ctx.fillStyle='#8A5020';ctx.fillRect(rx-8,ry-6,rw+16,ST+10);
+      for(let row=0;row<3;row++){
+        ctx.fillStyle=row%2===0?'#A06028':'#784018';
+        ctx.fillRect(rx-8,ry-6+row*(ST+10)/3,rw+16,Math.floor((ST+10)/3)-1);
+      }
+      ctx.fillStyle='#603010';ctx.fillRect(rx-8,ry-8,rw+16,4);
+      // Vent pipe on roof
+      const vpx=rx+rw*0.3;
+      ctx.fillStyle='#606060';ctx.fillRect(vpx,ry-16,8,14);
+      ctx.fillStyle='#404040';ctx.fillRect(vpx-2,ry-18,12,4);
+      // Eaves
+      ctx.fillStyle='rgba(0,0,0,0.22)';ctx.fillRect(rx-10,ry+ST+3,rw+20,5);
+    }
+
+    // ── TAVERN (The Hodl Tavern) ──────────────────────────────────────────
+    else if(d.label==='tavern'){
+      // Foundation
+      ctx.fillStyle='#3A2810';ctx.fillRect(rx-2,ry+bh-8,rw+4,8);
+
+      // Dark mahogany walls
+      ctx.fillStyle='#4A2810';ctx.fillRect(rx,ry+ST,rw,bh-ST-8);
+      // Thick timber frame beams — vertical
+      ctx.fillStyle='#2A1808';
+      ctx.fillRect(rx,ry+ST,7,bh-ST-8);ctx.fillRect(rx+rw-7,ry+ST,7,bh-ST-8);
+      ctx.fillRect(rx+Math.floor(rw/2)-3,ry+ST,6,bh-ST-8);
+      // Horizontal cross beams
+      ctx.fillRect(rx,ry+ST,rw,5);ctx.fillRect(rx,ry+bh-ST-6,rw,5);
+      // Panel fill between beams
+      ctx.fillStyle='#5A3418';
+      ctx.fillRect(rx+7,ry+ST+5,Math.floor(rw/2)-10,bh-ST*2-2);
+      ctx.fillRect(rx+Math.floor(rw/2)+3,ry+ST+5,Math.floor(rw/2)-10,bh-ST*2-2);
+      // Horizontal plank detail in panels
+      ctx.fillStyle='rgba(0,0,0,0.08)';
+      for(let i=0;i<Math.floor((bh-ST*2)/9);i++){ctx.fillRect(rx+7,ry+ST+5+i*9+7,rw-14,2);}
+
+      // Two windows with warm AMBER glow (candlelit!)
+      const wh3=ST-10,ww3=ST-6;
+      const wy3=ry+ST+12;
       // Left window
-      ctx.fillStyle=winFrame;ctx.fillRect(rx+ST-2,ry+ST+8,ST+4,ST-8);
-      ctx.fillStyle=winCol;ctx.fillRect(rx+ST,ry+ST+10,ST,ST-12);
-      ctx.fillStyle='rgba(255,255,255,0.08)';ctx.fillRect(rx+ST,ry+ST+10,ST/2,ST-12);
-      // Right window
-      ctx.fillStyle=winFrame;ctx.fillRect(rx+rw-2*ST-2,ry+ST+8,ST+4,ST-8);
-      ctx.fillStyle=winCol;ctx.fillRect(rx+rw-2*ST,ry+ST+10,ST,ST-12);
-      ctx.fillStyle='rgba(255,255,255,0.08)';ctx.fillRect(rx+rw-2*ST,ry+ST+10,ST/2,ST-12);
+      const lwx=rx+14;
+      ctx.fillStyle='#3A2010';ctx.fillRect(lwx-3,wy3-3,ww3+6,wh3+6);
+      ctx.fillStyle=winGlowAmber;ctx.fillRect(lwx,wy3,ww3,wh3);
+      ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fillRect(lwx,wy3,ww3/2,wh3);
+      ctx.fillStyle='#3A2010';ctx.fillRect(lwx+ww3/2-1,wy3,2,wh3);ctx.fillRect(lwx,wy3+wh3/2-1,ww3,2);
+      // Warm glow pool on ground from left window
+      if(isNight){
+        ctx.fillStyle='rgba(255,180,60,0.1)';
+        ctx.beginPath();ctx.ellipse(lwx+ww3/2,ry+bh+6,20,8,0,0,Math.PI*2);ctx.fill();
+      }
+      // Right window (if wide enough)
+      if(d.w>=6){
+        const rwx2=rx+rw-14-ww3;
+        ctx.fillStyle='#3A2010';ctx.fillRect(rwx2-3,wy3-3,ww3+6,wh3+6);
+        ctx.fillStyle=winGlowAmber;ctx.fillRect(rwx2,wy3,ww3,wh3);
+        ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fillRect(rwx2,wy3,ww3/2,wh3);
+        ctx.fillStyle='#3A2010';ctx.fillRect(rwx2+ww3/2-1,wy3,2,wh3);ctx.fillRect(rwx2,wy3+wh3/2-1,ww3,2);
+        if(isNight){
+          ctx.fillStyle='rgba(255,180,60,0.1)';
+          ctx.beginPath();ctx.ellipse(rwx2+ww3/2,ry+bh+6,20,8,0,0,Math.PI*2);ctx.fill();
+        }
+      }
+
+      // Hanging sign — '🍺 HODL' on dark plaque
+      const ts3W=54,ts3H=14;const ts3X=rx+rw/2-ts3W/2,ts3Y=ry+4;
+      ctx.fillStyle='#444438';ctx.fillRect(ts3X+ts3W*0.3,ts3Y-8,2,8);ctx.fillRect(ts3X+ts3W*0.68,ts3Y-8,2,8);
+      ctx.fillStyle='#2A1808';ctx.fillRect(ts3X,ts3Y,ts3W,ts3H);
+      ctx.fillStyle='#C88030';ctx.font='bold 8px '+FONT;ctx.textAlign='center';
+      ctx.fillText('🍺 HODL',ts3X+ts3W/2,ts3Y+10);
+
+      // Swinging door — slightly ajar, lighter
+      const dW3=ST-2,dH3=ST+12;
+      const dX3=rx+Math.floor(rw/2)-dW3/2;const dY3=ry+bh-dH3;
+      ctx.fillStyle='#3A2010';ctx.fillRect(dX3-3,dY3,dW3+6,dH3+1);
+      ctx.fillStyle='#8A6030';ctx.fillRect(dX3,dY3+2,dW3*0.55,dH3-2); // left door panel ajar
+      ctx.fillStyle='#7A5028';ctx.fillRect(dX3+dW3*0.55,dY3+2,dW3*0.45,dH3-2); // right panel
+      // Door panels detail
+      ctx.fillStyle='rgba(0,0,0,0.1)';
+      ctx.fillRect(dX3+4,dY3+6,dW3*0.45,dH3/2-8);
+      ctx.fillRect(dX3+4,dY3+dH3/2+2,dW3*0.45,dH3/2-10);
+      // Handle
+      ctx.fillStyle='#B08040';ctx.fillRect(dX3+dW3-10,dY3+dH3/2-3,4,8);
+      // Door mat
+      ctx.fillStyle='#7A4820';ctx.fillRect(dX3-4,ry+bh+1,dW3+8,5);
+      ctx.fillStyle='rgba(200,140,60,0.3)';
+      for(let i=0;i<3;i++){ctx.fillRect(dX3-2+i*9,ry+bh+2,7,3);}
+
+      // Barrel outside left of door
+      const brlX=dX3-22,brlY=ry+bh-ST+4;
+      ctx.fillStyle='#6A4020';ctx.fillRect(brlX,brlY,14,ST-8);
+      ctx.fillStyle='#888060';ctx.fillRect(brlX-1,brlY+4,16,3);ctx.fillRect(brlX-1,brlY+12,16,3);
+      ctx.fillStyle='#5A3010';
+      for(let i=0;i<3;i++){ctx.fillRect(brlX+i*5+1,brlY,3,ST-8);}
+
+      // Small bench outside right of door
+      const bnX=dX3+dW3+6,bnY=ry+bh-12;
+      ctx.fillStyle='#7A5028';ctx.fillRect(bnX,bnY,20,4); // seat
+      ctx.fillStyle='#5A3818';ctx.fillRect(bnX+2,bnY+4,3,8);ctx.fillRect(bnX+15,bnY+4,3,8); // legs
+
+      // Chimney — left side, orange-tinged smoke
+      const tchx=rx+10,tchy=ry-ST*0.5;
+      ctx.fillStyle='#5A3820';ctx.fillRect(tchx,tchy,12,ST*0.5+ST+4);
+      ctx.fillStyle='#4A2810';
+      for(let i=0;i<5;i++){ctx.fillRect(tchx+(i%2)*2,tchy+i*8,12,6);}
+      ctx.fillStyle='#3A1A08';ctx.fillRect(tchx-2,tchy-4,16,5);
+      // Orange-tinged smoke (fireplace)
+      const tsa=0.25+Math.sin(t*2)*0.1;
+      ctx.fillStyle=`rgba(200,130,60,${tsa})`;
+      ctx.beginPath();ctx.arc(tchx+6+Math.sin(t)*3,tchy-12-Math.sin(t*1.4)*5,4+Math.sin(t*2)*1.5,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=`rgba(180,100,40,${tsa*0.7})`;
+      ctx.beginPath();ctx.arc(tchx+5+Math.sin(t+1)*4,tchy-22-Math.sin(t)*6,3,0,Math.PI*2);ctx.fill();
+
+      // Thatched/darker roof
+      ctx.fillStyle='#5A4020';ctx.fillRect(rx-8,ry-6,rw+16,ST+10);
+      for(let row=0;row<5;row++){
+        ctx.fillStyle=row%2===0?'#6A5028':'#4A3010';
+        const rowy=ry-6+row*(ST+10)/5;
+        for(let col=0;col<Math.ceil((rw+16)/10);col++){
+          ctx.fillRect(rx-8+col*10+(row%2)*4,rowy,9,Math.floor((ST+10)/5));
+        }
+      }
+      ctx.fillStyle='#3A2010';ctx.fillRect(rx-8,ry-8,rw+16,4);
+      ctx.fillStyle='rgba(0,0,0,0.22)';ctx.fillRect(rx-10,ry+ST+3,rw+20,5);
     }
-    
-    // Door at bottom center
-    const doorW=ST,doorH=ST+8;
-    const doorX2=rx+Math.floor(d.w/2)*ST;
-    ctx.fillStyle='#3A2010';ctx.fillRect(doorX2-2,ry+bh-doorH,doorW+4,doorH);
-    ctx.fillStyle='#5A3A18';ctx.fillRect(doorX2,ry+bh-doorH+2,doorW,doorH-2);
-    // Door handle
-    ctx.fillStyle='#AA8844';ctx.fillRect(doorX2+doorW-8,ry+bh-doorH/2,4,4);
-    // Door mat
-    ctx.fillStyle='#8A6A40';ctx.fillRect(doorX2-4,ry+bh-2,doorW+8,4);
-    
-    // Roof (covers top, extends beyond walls)
-    ctx.fillStyle=d.color;ctx.fillRect(rx-6,ry-4,rw+12,ST+8);
-    // Roof ridge
-    ctx.fillStyle='rgba(0,0,0,0.15)';ctx.fillRect(rx-6,ry+ST/2-1,rw+12,3);
-    // Eaves shadow
-    ctx.fillStyle='rgba(0,0,0,0.2)';ctx.fillRect(rx-8,ry+ST+2,rw+16,4);
-    
-    // Chimney (home and tavern)
-    if(d.label==='home'||d.label==='tavern'){
-      ctx.fillStyle='#6A3A1A';ctx.fillRect(rx+rw-20,ry-16,12,20);
-      ctx.fillStyle='#5A2A0A';ctx.fillRect(rx+rw-22,ry-18,16,4);
-      const t=performance.now()/1000;
-      ctx.fillStyle='rgba(180,180,180,0.3)';
-      ctx.beginPath();ctx.arc(rx+rw-14+Math.sin(t)*4,ry-24-Math.sin(t*1.5)*6,4+Math.sin(t*2)*2,0,Math.PI*2);ctx.fill();
-      ctx.beginPath();ctx.arc(rx+rw-12+Math.sin(t+1)*5,ry-34-Math.sin(t*1.3)*8,3+Math.sin(t*2.5)*1.5,0,Math.PI*2);ctx.fill();
+
+    // ── SHED (Mining Shed) ────────────────────────────────────────────────
+    else if(d.label==='shed'){
+      // Foundation
+      ctx.fillStyle='#3A3A38';ctx.fillRect(rx-2,ry+bh-8,rw+4,8);
+
+      // Corrugated metal walls — alternating grey stripes
+      for(let i=0;i<Math.floor(rw/4)+1;i++){
+        ctx.fillStyle=i%2===0?'#6A6A68':'#5A5A58';
+        ctx.fillRect(rx+i*4,ry+ST,4,bh-ST-8);
+      }
+      // Horizontal seam lines
+      ctx.fillStyle='rgba(0,0,0,0.15)';
+      for(let i=0;i<Math.floor((bh-ST)/ST);i++){ctx.fillRect(rx,ry+ST+i*ST,rw,3);}
+      // Metal reinforcement verticals
+      ctx.fillStyle='#484846';ctx.fillRect(rx,ry+ST,5,bh-ST-8);ctx.fillRect(rx+rw-5,ry+ST,5,bh-ST-8);
+
+      // 'MINING' stenciled in orange on the wall
+      ctx.fillStyle='#C07010';ctx.font='bold 9px '+FONT;ctx.textAlign='center';
+      ctx.fillText('MINING',rx+rw/2,ry+ST+Math.floor((bh-ST)*0.55));
+
+      // Single small barred window
+      const sw=ST-12,sh=ST-18;
+      const swx=rx+ST*0.5,swy=ry+ST+12;
+      ctx.fillStyle='#484846';ctx.fillRect(swx-3,swy-3,sw+6,sh+6);
+      ctx.fillStyle='rgba(120,160,180,0.2)';ctx.fillRect(swx,swy,sw,sh);
+      // Window bars
+      ctx.fillStyle='#383836';
+      ctx.fillRect(swx+sw/2-1,swy,2,sh);
+      ctx.fillRect(swx,swy+sh/2-1,sw,2);
+      // Vertical bars
+      for(let b=0;b<3;b++){ctx.fillRect(swx+b*(sw/3),swy,2,sh);}
+
+      // Power cable — thin dark line from right wall
+      ctx.strokeStyle='#2A2A28';ctx.lineWidth=2;
+      ctx.beginPath();ctx.moveTo(rx+rw,ry+ST+bh*0.3-ST);ctx.lineTo(rx+rw+20,ry+ST+bh*0.2-ST);ctx.stroke();
+
+      // Exhaust vent on right side
+      const evx=rx+rw-12,evy=ry+ST+bh*0.65-ST;
+      ctx.fillStyle='#505050';ctx.fillRect(evx,evy,10,12);
+      ctx.fillStyle='#404040';ctx.fillRect(evx+2,evy+2,6,8); // vent opening
+      // Heat shimmer (subtle flicker)
+      const hs=0.04+Math.sin(t*4+0.5)*0.02;
+      ctx.fillStyle=`rgba(200,180,100,${hs})`;ctx.fillRect(evx+2,evy-4,6,6);
+
+      // Heavy metal door — grey, with handle
+      const dW4=ST,dH4=ST+12;
+      const dX4=rx+Math.floor(rw/2)-dW4/2;const dY4=ry+bh-dH4;
+      ctx.fillStyle='#2A2A28';ctx.fillRect(dX4-4,dY4,dW4+8,dH4+1);
+      ctx.fillStyle='#484846';ctx.fillRect(dX4,dY4+2,dW4,dH4-2);
+      // Door rivets/bolts
+      ctx.fillStyle='#3A3A38';
+      for(let r=0;r<3;r++){
+        ctx.fillRect(dX4+4,dY4+8+r*14,4,4);
+        ctx.fillRect(dX4+dW4-8,dY4+8+r*14,4,4);
+      }
+      // Handle — vertical bar style
+      ctx.fillStyle='#888880';ctx.fillRect(dX4+dW4-10,dY4+dH4/2-10,5,20);
+      ctx.fillStyle='#AAAAAA';ctx.fillRect(dX4+dW4-9,dY4+dH4/2-8,3,16);
+      // Door mat
+      ctx.fillStyle='#555550';ctx.fillRect(dX4-4,ry+bh+1,dW4+8,5);
+
+      // Flat metal roof — grey-blue
+      ctx.fillStyle='#5A5A68';ctx.fillRect(rx-6,ry-4,rw+12,ST+6);
+      ctx.fillStyle='#4A4A58';ctx.fillRect(rx-6,ry-4,rw+12,4); // front edge
+      ctx.fillStyle='#6A6A78';
+      for(let p=0;p<Math.ceil((rw+12)/20);p++){ctx.fillRect(rx-6+p*20,ry-4,18,ST+6);}
+      ctx.fillStyle='rgba(0,0,0,0.2)';ctx.fillRect(rx-8,ry+ST+2,rw+16,4);
+
+      // Satellite dish / antenna on roof
+      const antX=rx+rw*0.6,antY=ry-16;
+      ctx.fillStyle='#888880';ctx.fillRect(antX,antY,3,14); // mast
+      ctx.fillStyle='#AAAAAA';ctx.fillRect(antX-8,antY,18,4); // dish top
+      ctx.fillStyle='#909088';ctx.fillRect(antX-6,antY+4,14,2); // dish body
+
+      // Blinking LED light on roof (red, toggles)
+      const ledOn=Math.floor(performance.now()/500)%2===0;
+      ctx.fillStyle=ledOn?'#FF2020':'#600000';
+      ctx.beginPath();ctx.arc(rx+rw*0.2,ry-2,3,0,Math.PI*2);ctx.fill();
+      if(ledOn){
+        ctx.fillStyle='rgba(255,0,0,0.2)';
+        ctx.beginPath();ctx.arc(rx+rw*0.2,ry-2,7,0,Math.PI*2);ctx.fill();
+      }
     }
-    
-    // Building sign
-    const signs={shop:"₿ RUBY'S",tavern:'🍺 HODL TAVERN',hall:'🏛️ TOWN HALL',shed:'⛏️ MINING'};
-    if(signs[d.label]){
-      ctx.fillStyle='#2A1A08';ctx.fillRect(rx+rw/2-28,ry-2,56,14);
-      ctx.fillStyle=C.hud;ctx.font='bold 9px '+FONT;ctx.textAlign='center';
-      ctx.fillText(signs[d.label],rx+rw/2,ry+9);
+
+    // ── HALL (Town Hall) ──────────────────────────────────────────────────
+    else if(d.label==='hall'){
+      // Foundation — stone base
+      ctx.fillStyle='#3A3A40';ctx.fillRect(rx-4,ry+bh-10,rw+8,10);
+      ctx.fillStyle='#4A4A50';
+      for(let i=0;i<Math.floor((rw+8)/16);i++){ctx.fillRect(rx-4+i*16,ry+bh-10,14,9);}
+
+      // Stone brick walls — grey with brick pattern
+      ctx.fillStyle='#5A5A62';ctx.fillRect(rx,ry+ST,rw,bh-ST-10);
+      // Horizontal mortar lines
+      ctx.fillStyle='rgba(0,0,0,0.12)';
+      for(let i=0;i<Math.floor((bh-ST)/10);i++){ctx.fillRect(rx,ry+ST+i*10+8,rw,2);}
+      // Vertical brick joints (every 3rd pixel offset by row)
+      for(let row=0;row<Math.floor((bh-ST)/10);row++){
+        const offset=row%2===0?0:8;
+        for(let col=0;col<Math.ceil(rw/16);col++){
+          ctx.fillRect(rx+col*16+offset,ry+ST+row*10,2,8);
+        }
+      }
+      // Subtle stone variation
+      ctx.fillStyle='rgba(255,255,255,0.04)';
+      ctx.fillRect(rx+rw*0.2,ry+ST,rw*0.15,bh-ST-10);
+      ctx.fillRect(rx+rw*0.6,ry+ST,rw*0.1,bh-ST-10);
+
+      // Two tall narrow windows with dark frames
+      const tww=ST-14,twh=ST+4;const twy=ry+ST+12;
+      const tw1x=rx+ST*0.7,tw2x=rx+rw-ST*0.7-tww;
+      for(const twx of [tw1x,tw2x]){
+        ctx.fillStyle='#2A2A30';ctx.fillRect(twx-3,twy-3,tww+6,twh+6);
+        ctx.fillStyle=winGlow;ctx.fillRect(twx,twy,tww,twh);
+        ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fillRect(twx,twy,tww/2,twh);
+        ctx.fillStyle='#2A2A30';ctx.fillRect(twx+tww/2-1,twy,2,twh);
+        // Arched top
+        ctx.fillStyle='#2A2A30';ctx.beginPath();ctx.arc(twx+tww/2,twy,tww/2+3,Math.PI,0);ctx.fill();
+        ctx.fillStyle=winGlow;ctx.beginPath();ctx.arc(twx+tww/2,twy,tww/2,Math.PI,0);ctx.fill();
+      }
+
+      // Two columns flanking door area
+      const colY=ry+bh-ST*1.6;const colH=ST*1.4;
+      const colX1=rx+rw/2-ST*0.9,colX2=rx+rw/2+ST*0.9-4;
+      for(const cx of [colX1,colX2]){
+        ctx.fillStyle='#8A8A92';ctx.fillRect(cx,colY,4,colH); // column shaft
+        ctx.fillStyle='#9A9AA2';ctx.fillRect(cx-2,colY,8,5); // capital top
+        ctx.fillStyle='#7A7A82';ctx.fillRect(cx-2,colY+colH-4,8,4); // base
+      }
+
+      // Triangular pediment above door
+      const pedW=rw*0.6,pedX=rx+rw*0.2;
+      const pedY=ry+bh-ST*1.65;
+      ctx.fillStyle='#6A6A72';
+      ctx.beginPath();ctx.moveTo(pedX,pedY);ctx.lineTo(pedX+pedW,pedY);ctx.lineTo(pedX+pedW/2,pedY-ST*0.5);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#5A5A62';ctx.fillRect(pedX,pedY-2,pedW,3); // pediment base line
+
+      // Clock face on pediment
+      const clkX=pedX+pedW/2,clkY=pedY-ST*0.25;const clkR=ST*0.18;
+      ctx.fillStyle='#E8E4D8';ctx.beginPath();ctx.arc(clkX,clkY,clkR,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#3A3040';ctx.lineWidth=1;ctx.beginPath();ctx.arc(clkX,clkY,clkR,0,Math.PI*2);ctx.stroke();
+      // Hour dots
+      for(let h=0;h<12;h++){
+        const ang=h/12*Math.PI*2-Math.PI/2;
+        ctx.fillStyle='#3A3040';ctx.fillRect(clkX+Math.cos(ang)*(clkR-3)-1,clkY+Math.sin(ang)*(clkR-3)-1,2,2);
+      }
+      // Clock hands based on game time
+      const clkHr=getHour()%12,clkMin=(getHour()-Math.floor(getHour()))*60;
+      const hAng=(clkHr/12+clkMin/720)*Math.PI*2-Math.PI/2;
+      const mAng=clkMin/60*Math.PI*2-Math.PI/2;
+      ctx.strokeStyle='#3A3040';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(clkX,clkY);ctx.lineTo(clkX+Math.cos(hAng)*(clkR-5),clkY+Math.sin(hAng)*(clkR-5));ctx.stroke();
+      ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(clkX,clkY);ctx.lineTo(clkX+Math.cos(mAng)*(clkR-3),clkY+Math.sin(mAng)*(clkR-3));ctx.stroke();
+
+      // Grand double door — wider, darker, with brass handles
+      const gdW=ST+12,gdH=ST+14;
+      const gdX=rx+rw/2-gdW/2;const gdY=ry+bh-gdH;
+      ctx.fillStyle='#1A1820';ctx.fillRect(gdX-4,gdY,gdW+8,gdH+1);
+      ctx.fillStyle='#3A3440';ctx.fillRect(gdX,gdY+2,gdW/2-1,gdH-2); // left door
+      ctx.fillStyle='#2E2838';ctx.fillRect(gdX+gdW/2+1,gdY+2,gdW/2-1,gdH-2); // right door
+      // Door panels
+      ctx.fillStyle='rgba(0,0,0,0.15)';
+      ctx.fillRect(gdX+4,gdY+6,gdW/2-7,gdH/2-8);ctx.fillRect(gdX+4,gdY+gdH/2+2,gdW/2-7,gdH/2-10);
+      ctx.fillRect(gdX+gdW/2+3,gdY+6,gdW/2-7,gdH/2-8);ctx.fillRect(gdX+gdW/2+3,gdY+gdH/2+2,gdW/2-7,gdH/2-10);
+      // Brass handles
+      ctx.fillStyle='#C8A020';
+      ctx.fillRect(gdX+gdW/2-6,gdY+gdH/2-4,4,10);ctx.fillRect(gdX+gdW/2+3,gdY+gdH/2-4,4,10);
+      // 'TOWN HALL' carved into stone lintel
+      ctx.fillStyle='#2A2A30';ctx.fillRect(gdX-8,gdY-12,gdW+16,12);
+      ctx.fillStyle='#8A8A92';ctx.font='bold 7px '+FONT;ctx.textAlign='center';
+      ctx.fillText('TOWN HALL',gdX+gdW/2,gdY-2);
+      // Door mat
+      ctx.fillStyle='#4A4A50';ctx.fillRect(gdX-6,ry+bh+1,gdW+12,5);
+      ctx.fillStyle='rgba(200,160,20,0.25)';
+      for(let i=0;i<4;i++){ctx.fillRect(gdX-4+i*10,ry+bh+2,8,3);}
+
+      // Slate grey roof — clean lines
+      ctx.fillStyle='#6A6A72';ctx.fillRect(rx-8,ry-6,rw+16,ST+10);
+      ctx.fillStyle='#5A5A62';
+      for(let i=0;i<Math.ceil((rw+16)/16);i++){ctx.fillRect(rx-8+i*16,ry-6,15,ST+10);}
+      ctx.fillStyle='#4A4A52';ctx.fillRect(rx-8,ry-8,rw+16,4);
+      ctx.fillStyle='rgba(0,0,0,0.22)';ctx.fillRect(rx-10,ry+ST+3,rw+20,5);
+
+      // Small ₿ flag on top
+      const flagX=rx+rw/2-1,flagY=ry-18;
+      ctx.fillStyle='#888888';ctx.fillRect(flagX,flagY,2,16); // pole
+      ctx.fillStyle='#C07010';ctx.fillRect(flagX+2,flagY,14,9); // flag orange
+      ctx.fillStyle='#F7931A';ctx.font='bold 7px '+FONT;ctx.textAlign='left';
+      ctx.fillText('₿',flagX+3,flagY+8);
     }
+
+    // ── DEFAULT building ──────────────────────────────────────────────────
+    else {
+      const wallCol2={home:'#6A4430',shed:'#5A5A4A',shop:'#7A5A30',tavern:'#5A3A1A',hall:'#4A4A5A'}[d.label]||'#6A4430';
+      ctx.fillStyle=wallCol2;ctx.fillRect(rx,ry+ST,rw,bh-ST);
+      ctx.fillStyle='rgba(0,0,0,0.1)';
+      for(let i=0;i<Math.floor(bh/ST)-1;i++){ctx.fillRect(rx,ry+ST+i*ST+ST-2,rw,2);}
+      ctx.fillStyle='rgba(0,0,0,0.08)';ctx.fillRect(rx+2,ry+ST,4,bh-ST);ctx.fillRect(rx+rw-6,ry+ST,4,bh-ST);
+      const dWd=ST,dHd=ST+8;const dXd=rx+Math.floor(d.w/2)*ST-dWd/2;
+      ctx.fillStyle='#3A2010';ctx.fillRect(dXd-2,ry+bh-dHd,dWd+4,dHd);
+      ctx.fillStyle='#5A3A18';ctx.fillRect(dXd,ry+bh-dHd+2,dWd,dHd-2);
+      ctx.fillStyle='#AA8844';ctx.fillRect(dXd+dWd-8,ry+bh-dHd/2,4,4);
+      ctx.fillStyle='#8A6A40';ctx.fillRect(dXd-4,ry+bh-2,dWd+8,4);
+      ctx.fillStyle=d.color;ctx.fillRect(rx-6,ry-4,rw+12,ST+8);
+      ctx.fillStyle='rgba(0,0,0,0.15)';ctx.fillRect(rx-6,ry+ST/2-1,rw+12,3);
+      ctx.fillStyle='rgba(0,0,0,0.2)';ctx.fillRect(rx-8,ry+ST+2,rw+16,4);
+    }
+
+    ctx.textAlign='left'; // restore default
     return;
   }
   else if(d.type==='seed_fragment'){
