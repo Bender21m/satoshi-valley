@@ -449,31 +449,33 @@ function generateMap() {
   // Home (citadel) — size determined by citadelTier
   buildBuilding(homeX-Math.floor(CITADEL_TIERS[citadelTier].w/2), homeY-Math.floor(CITADEL_TIERS[citadelTier].h/2), CITADEL_TIERS[citadelTier].w, CITADEL_TIERS[citadelTier].h, 'home');
   // Mining Shed
-  buildBuilding(homeX-14, homeY-2, 6, 5, 'shed');
+  buildBuilding(homeX-18, homeY-2, 6, 5, 'shed');
   // Ruby's Shop
-  buildBuilding(homeX+2, homeY+10, 8, 6, 'shop');
+  buildBuilding(homeX+4, homeY+16, 8, 6, 'shop');
   // Tavern
-  buildBuilding(homeX+12, homeY+8, 7, 6, 'tavern');
+  buildBuilding(homeX+20, homeY+12, 7, 6, 'tavern');
   // Town Hall
-  buildBuilding(homeX+8, homeY-5, 8, 6, 'hall');
+  buildBuilding(homeX+12, homeY-10, 8, 6, 'hall');
   
   // ---- PATHS (connecting buildings) ----
-  // Main path horizontal
-  drawPath(homeX-15, homeY+3, homeX+20, homeY+3, 2);
+  // Main east-west road (wider, longer)
+  drawPath(homeX-20, homeY+3, homeX+25, homeY+3, 3);
   // Path to cabin
   drawPath(homeX, homeY+3, homeX, homeY+2, 1);
-  // Path to shed
-  drawPath(homeX-11, homeY+3, homeX-11, homeY+2, 1);
+  // Path from shed door to main road
+  drawPath(homeX-15, homeY+2, homeX-15, homeY+3, 1);
   // Path south to shop
-  drawPath(homeX+5, homeY+3, homeX+5, homeY+10, 2);
+  drawPath(homeX+8, homeY+3, homeX+8, homeY+21, 2);
   // Path to tavern
-  drawPath(homeX+15, homeY+3, homeX+15, homeY+8, 1);
-  // Path to town hall
-  drawPath(homeX+11, homeY+3, homeX+11, homeY, 1);
+  drawPath(homeX+23, homeY+3, homeX+23, homeY+17, 1);
+  // Path north to town hall
+  drawPath(homeX+16, homeY+3, homeX+16, homeY-5, 1);
   // Path north to bridge
   drawPath(homeX, homeY-3, homeX, homeY-18, 1);
-  // Path south to lake area
-  drawPath(homeX+5, homeY+16, homeX+5, homeY+25, 1);
+  // Path south to market/lake area
+  drawPath(homeX+8, homeY+22, homeX+8, homeY+30, 1);
+  // Village plaza (4x4 path tiles where south paths diverge)
+  for(let py=homeY+4;py<=homeY+7;py++) for(let px=homeX+4;px<=homeX+7;px++) setT(px,py,T.PATH);
   
   // ---- GARDEN (right of cabin) ----
   for (let y = homeY-2; y <= homeY+2; y++) for (let x = homeX+6; x <= homeX+12; x++) {
@@ -500,7 +502,7 @@ function generateMap() {
       const n = fbm(x*0.08+50, y*0.08+50, 3);
       const treeDensity = n > 0.6 ? 0.35 : n > 0.5 ? 0.12 : 0.03;
       // Don't put trees near buildings
-      const nearBuilding = Math.abs(x-homeX)<18 && Math.abs(y-homeY)<16;
+      const nearBuilding = Math.abs(x-homeX)<30 && Math.abs(y-homeY)<26;
       if (rng() < treeDensity && !nearBuilding) {
         decor.push({ x, y, type: 'tree', v: Math.floor(rng()*5), size: 0.7+rng()*0.6 });
       }
@@ -521,10 +523,10 @@ function generateMap() {
   
   // Signs
   decor.push({ x: homeX-1, y: homeY+3, type: 'sign', text: 'The Homestead' });
-  decor.push({ x: homeX-12, y: homeY+3, type: 'sign', text: 'Mining Shed' });
-  decor.push({ x: homeX+5, y: homeY+9, type: 'sign', text: "Ruby's Hardware" });
-  decor.push({ x: homeX+14, y: homeY+7, type: 'sign', text: "The Hodl Tavern" });
-  decor.push({ x: homeX+10, y: homeY-6, type: 'sign', text: "Town Hall" });
+  decor.push({ x: homeX-16, y: homeY+3, type: 'sign', text: 'Mining Shed' });
+  decor.push({ x: homeX+7, y: homeY+15, type: 'sign', text: "Ruby's Hardware" });
+  decor.push({ x: homeX+22, y: homeY+11, type: 'sign', text: 'The Hodl Tavern' });
+  decor.push({ x: homeX+14, y: homeY-11, type: 'sign', text: 'Town Hall' });
   decor.push({ x: homeX, y: homeY-15, type: 'sign', text: "← Forest  Mountains →" });
   decor.push({ x: 15, y: 30, type: 'sign', text: "Cypherpunk Woods" });
   
@@ -533,9 +535,37 @@ function generateMap() {
   decor.push({ x: homeX-8, y: homeY-8, type: 'sign', text: "HODL" });
   decor.push({ x: 30, y: 25, type: 'sign', text: "In code we trust" });
   
+  // ---- INTERIOR DECORATIONS ----
+  // Shop interior items
+  const shopX=homeX+4, shopY=homeY+16;
+  decor.push({x:shopX+1,y:shopY+1,type:'furniture',item:'shelf'});
+  decor.push({x:shopX+2,y:shopY+1,type:'furniture',item:'shelf'});
+  decor.push({x:shopX+5,y:shopY+1,type:'furniture',item:'shelf'});
+  decor.push({x:shopX+6,y:shopY+1,type:'furniture',item:'shelf'});
+  decor.push({x:shopX+3,y:shopY+3,type:'furniture',item:'counter'});
+  decor.push({x:shopX+4,y:shopY+3,type:'furniture',item:'counter'});
+
+  // Tavern interior
+  const tavX=homeX+20, tavY=homeY+12;
+  decor.push({x:tavX+1,y:tavY+1,type:'furniture',item:'barrel'});
+  decor.push({x:tavX+2,y:tavY+3,type:'furniture',item:'table'});
+  decor.push({x:tavX+4,y:tavY+3,type:'furniture',item:'table'});
+  decor.push({x:tavX+5,y:tavY+1,type:'furniture',item:'barrel'});
+
+  // Town Hall interior
+  const hallX=homeX+12, hallY=homeY-10;
+  decor.push({x:hallX+2,y:hallY+1,type:'furniture',item:'desk'});
+  decor.push({x:hallX+5,y:hallY+1,type:'furniture',item:'bookshelf'});
+  decor.push({x:hallX+3,y:hallY+3,type:'furniture',item:'chair'});
+  decor.push({x:hallX+4,y:hallY+3,type:'furniture',item:'chair'});
+
+  // Shed interior
+  decor.push({x:homeX-17,y:homeY-1,type:'furniture',item:'workbench'});
+  decor.push({x:homeX-14,y:homeY-1,type:'furniture',item:'crate'});
+
   // Seed fragments hidden in the world
   const fragLocations = [
-    { x: homeX-14, y: homeY-1 }, // In mining shed
+    { x: homeX-16, y: homeY-1 }, // In mining shed
     { x: 15, y: 20 }, // Deep forest
     { x: 90, y: 15 }, // Mountain cave
     { x: homeX+30, y: homeY+20 }, // Near lake
@@ -705,7 +735,7 @@ const npcs = [
       '"I remember the first time I ran my own node. Felt like freedom."',
     ],
     wp:[{x:homeX+8,y:homeY},{x:homeX+11,y:homeY},{x:homeX+11,y:homeY+2},{x:homeX+8,y:homeY+2}],pi:0,mt:0,mi:3 },
-  { name:'Leverage Larry',x:(homeX+14)*TILE+8,y:(homeY+10)*TILE+8,col:'#4455FF',hair:'#222',role:'friend',
+  { name:'Leverage Larry',x:(homeX+23)*TILE+8,y:(homeY+15)*TILE+8,col:'#4455FF',hair:'#222',role:'friend',
     dlg:[
       '"100x long, funded. Can\'t go tits up."',
       '"I\'m either getting a lambo or sleeping on your couch again."',
@@ -718,7 +748,7 @@ const npcs = [
       '"I\'m not gambling, it\'s called risk management."',
       '"When I make it, I\'m buying this whole valley. Mark my words."',
     ],
-    wp:[{x:homeX+14,y:homeY+10},{x:homeX+17,y:homeY+10},{x:homeX+17,y:homeY+12},{x:homeX+14,y:homeY+12}],pi:0,mt:0,mi:2 },
+    wp:[{x:homeX+21,y:homeY+15},{x:homeX+24,y:homeY+15},{x:homeX+24,y:homeY+17},{x:homeX+21,y:homeY+17}],pi:0,mt:0,mi:2 },
   { name:'Mayor Keynesian',x:(homeX+10)*TILE+8,y:(homeY-3)*TILE+8,col:'#888',hair:'#AAA',role:'friend',
     dlg:[
       '"We need more stimulus for the village economy!"',
@@ -733,7 +763,7 @@ const npcs = [
       '"We\'re not bankrupt, we\'re strategically leveraged."',
     ],
     wp:[{x:homeX+10,y:homeY-3},{x:homeX+13,y:homeY-3},{x:homeX+13,y:homeY-1},{x:homeX+10,y:homeY-1}],pi:0,mt:0,mi:4 },
-  { name:'Ruby',x:(homeX+5)*TILE+8,y:(homeY+13)*TILE+8,col:'#CC4444',hair:'#FF6644',role:'shop',
+  { name:'Ruby',x:(homeX+8)*TILE+8,y:(homeY+19)*TILE+8,col:'#CC4444',hair:'#FF6644',role:'shop',
     dlg:[
       '"Press B to browse! Everything priced in sats — no fiat here."',
       '"These ASICs came off the boat from Shenzhen last week."',
@@ -743,7 +773,7 @@ const npcs = [
       '"Pro tip: immersion cooling is endgame. I\'m working on it."',
       '"Every miner I sell makes the network stronger. That\'s the real product."',
     ],
-    wp:[{x:homeX+5,y:homeY+13},{x:homeX+7,y:homeY+13}],pi:0,mt:0,mi:5 },
+    wp:[{x:homeX+6,y:homeY+19},{x:homeX+9,y:homeY+19},{x:homeX+9,y:homeY+21},{x:homeX+6,y:homeY+21}],pi:0,mt:0,mi:5 },
   { name:'The Hermit',x:12*TILE+8,y:35*TILE+8,col:'#363',hair:'#555',role:'friend',
     dlg:[
       '"Your uncle understood: cypherpunks write code."',
@@ -758,7 +788,7 @@ const npcs = [
       '"The Chancellor was on the brink of a second bailout for the banks. That\'s how it started."',
     ],
     wp:[{x:12,y:35},{x:10,y:35},{x:10,y:38},{x:12,y:38}],pi:0,mt:0,mi:6 },
-  { name:'Saylor',x:(homeX+14)*TILE+8,y:(homeY-4)*TILE+8,col:'#1A1A6B',hair:'#333',role:'friend',
+  { name:'Saylor',x:(homeX+16)*TILE+8,y:(homeY-7)*TILE+8,col:'#1A1A6B',hair:'#333',role:'friend',
     dlg:[
       '"Bitcoin is a swarm of cyber hornets serving the goddess of wisdom."',
       '"I bought the top. Then I bought more. The top is just the beginning."',
@@ -769,8 +799,8 @@ const npcs = [
       '"Laser eyes aren\'t a meme. They\'re a lifestyle."',
       '"I sold my house to buy bitcoin. Then I bought a better house."',
     ],
-    wp:[{x:homeX+14,y:homeY-4},{x:homeX+16,y:homeY-4},{x:homeX+16,y:homeY-2},{x:homeX+14,y:homeY-2}],pi:0,mt:0,mi:5 },
-  { name:'Pizza Pete',x:(homeX-5)*TILE+8,y:(homeY+12)*TILE+8,col:'#CC8800',hair:'#664400',role:'friend',
+    wp:[{x:homeX+14,y:homeY-7},{x:homeX+18,y:homeY-7},{x:homeX+18,y:homeY-6},{x:homeX+14,y:homeY-6}],pi:0,mt:0,mi:5 },
+  { name:'Pizza Pete',x:(homeX+2)*TILE+8,y:(homeY+22)*TILE+8,col:'#CC8800',hair:'#664400',role:'friend',
     dlg:[
       '"I once traded 10,000 BTC for two pizzas. Don\'t look at me like that."',
       '"May 22nd, 2010. The most expensive lunch in history. My lunch."',
@@ -780,7 +810,7 @@ const npcs = [
       '"Your uncle always ordered two pizzas on Pizza Day. Tradition."',
       '"At least I proved Bitcoin had real-world value. You\'re welcome."',
     ],
-    wp:[{x:homeX-5,y:homeY+12},{x:homeX-3,y:homeY+12},{x:homeX-3,y:homeY+14},{x:homeX-5,y:homeY+14}],pi:0,mt:0,mi:4 },
+    wp:[{x:homeX+1,y:homeY+21},{x:homeX+4,y:homeY+21},{x:homeX+4,y:homeY+23},{x:homeX+1,y:homeY+23}],pi:0,mt:0,mi:4 },
   { name:'Farmer Pete',x:(homeX+9)*TILE+8,y:(homeY+4)*TILE+8,col:'#228822',hair:'#886633',role:'market',
     dlg:[
       '"Press B to sell your harvest! I pay in sats, naturally."',
@@ -1614,12 +1644,19 @@ function drawTile(x,y,tile){
   
   switch(tile){
     case T.GRASS:{
-      // Rich layered grass
-      ctx.fillStyle=C.grass[v2%4];ctx.fillRect(sx,sy,ST,ST);
-      // Subtle variation
-      if((x+y)%3===0){ctx.fillStyle=C.grass[(v2+1)%4];ctx.fillRect(sx+4,sy+4,ST-8,ST-8);}
-      // Tiny grass blades
-      if((x*13+y*7)%9===0){ctx.fillStyle=C.grass[4];ctx.fillRect(sx+12,sy+6,3,10);ctx.fillRect(sx+30,sy+14,3,8);}
+      // Base color with more variation
+      const gi=(x*7+y*13)%5;
+      ctx.fillStyle=C.grass[gi];ctx.fillRect(sx,sy,ST,ST);
+      // Softer inner variation (lighter patch)
+      if((x+y)%4===0){ctx.fillStyle=C.grass[(gi+2)%5];ctx.globalAlpha=0.3;ctx.fillRect(sx+6,sy+6,ST-12,ST-12);ctx.globalAlpha=1;}
+      // Small grass tufts (subtle)
+      const gSeed=(x*31+y*17)%23;
+      ctx.fillStyle=C.grass[4]; // lightest green
+      if(gSeed<5){ctx.fillRect(sx+8+gSeed*4,sy+10,2,8);}
+      if(gSeed<3){ctx.fillRect(sx+28-gSeed*6,sy+20,2,6);}
+      // Tiny flower dots (very sparse)
+      if(gSeed===0){ctx.fillStyle='#E8C840';ctx.fillRect(sx+20,sy+14,2,2);}
+      if(gSeed===7){ctx.fillStyle='#D0D0F0';ctx.fillRect(sx+12,sy+30,2,2);}
       break;}
     case T.TALLGRASS:{
       ctx.fillStyle=C.grass[v2%4];ctx.fillRect(sx,sy,ST,ST);
@@ -1738,6 +1775,58 @@ function drawDecor(d) {
     ctx.fillStyle='#8A6A40';ctx.fillRect(sx+ST/2-16,sy+ST/2-8,32,16);
     ctx.fillStyle=C.white;ctx.font=`bold 10px ${FONT}`;ctx.textAlign='center';
     ctx.fillText(d.text,sx+ST/2,sy+ST/2+2);
+  }
+  else if(d.type==='furniture'){
+    const fx=sx,fy=sy;
+    if(d.item==='shelf'){
+      ctx.fillStyle='#7A5A30';ctx.fillRect(fx+4,fy+8,ST-8,6);ctx.fillRect(fx+4,fy+24,ST-8,6);
+      ctx.fillRect(fx+6,fy+8,4,22);ctx.fillRect(fx+ST-10,fy+8,4,22);
+      ctx.fillStyle='#CC4444';ctx.fillRect(fx+12,fy+4,6,4);
+      ctx.fillStyle='#4488CC';ctx.fillRect(fx+22,fy+4,5,4);
+      ctx.fillStyle='#CCAA44';ctx.fillRect(fx+14,fy+20,4,4);
+      ctx.fillStyle='#44CC44';ctx.fillRect(fx+24,fy+19,5,5);
+    }
+    else if(d.item==='counter'){
+      ctx.fillStyle='#8A6A40';ctx.fillRect(fx+2,fy+12,ST-4,16);
+      ctx.fillStyle='#A08050';ctx.fillRect(fx+2,fy+10,ST-4,4);
+      ctx.fillStyle='#333';ctx.fillRect(fx+14,fy+6,14,6);
+      ctx.fillStyle='#0A0';ctx.fillRect(fx+16,fy+7,10,3);
+    }
+    else if(d.item==='barrel'){
+      ctx.fillStyle='#6A4A20';ctx.beginPath();ctx.ellipse(fx+ST/2,fy+ST/2+4,14,16,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#8A6A40';ctx.fillRect(fx+ST/2-12,fy+12,24,4);ctx.fillRect(fx+ST/2-12,fy+24,24,4);
+      ctx.fillStyle='#5A3A10';ctx.fillRect(fx+ST/2-1,fy+8,2,24);
+    }
+    else if(d.item==='table'){
+      ctx.fillStyle='#9A7A50';ctx.fillRect(fx+4,fy+14,ST-8,14);
+      ctx.fillStyle='#7A5A30';ctx.fillRect(fx+6,fy+28,6,12);ctx.fillRect(fx+ST-12,fy+28,6,12);
+      ctx.fillStyle='#B08040';ctx.fillRect(fx+12,fy+10,8,6);ctx.fillStyle='#DDD';ctx.fillRect(fx+28,fy+11,6,5);
+    }
+    else if(d.item==='desk'){
+      ctx.fillStyle='#6A5030';ctx.fillRect(fx+2,fy+16,ST-4,12);
+      ctx.fillStyle='#8A7050';ctx.fillRect(fx+2,fy+14,ST-4,4);
+      ctx.fillStyle='#EEE';ctx.fillRect(fx+8,fy+10,10,6);
+      ctx.fillStyle='#DDD';ctx.fillRect(fx+22,fy+11,8,5);
+    }
+    else if(d.item==='bookshelf'){
+      ctx.fillStyle='#5A3A18';ctx.fillRect(fx+4,fy+4,ST-8,ST-8);
+      ctx.fillStyle='#7A5A30';ctx.fillRect(fx+6,fy+8,ST-12,4);ctx.fillRect(fx+6,fy+18,ST-12,4);ctx.fillRect(fx+6,fy+28,ST-12,4);
+      const bc=['#CC3333','#3366CC','#33AA33','#CC9933','#9933CC','#CC6633'];
+      for(let b=0;b<4;b++){ctx.fillStyle=bc[b];ctx.fillRect(fx+8+b*6,fy+4,4,4);}
+      for(let b=0;b<3;b++){ctx.fillStyle=bc[b+2];ctx.fillRect(fx+10+b*7,fy+14,5,4);}
+    }
+    else if(d.item==='chair'){
+      ctx.fillStyle='#7A5A30';ctx.fillRect(fx+12,fy+20,ST-24,12);ctx.fillRect(fx+12,fy+14,ST-24,8);ctx.fillRect(fx+14,fy+6,ST-28,10);
+    }
+    else if(d.item==='workbench'){
+      ctx.fillStyle='#6A5030';ctx.fillRect(fx+2,fy+16,ST-4,12);
+      ctx.fillStyle='#888';ctx.fillRect(fx+6,fy+12,10,6);
+      ctx.fillStyle='#AAA';ctx.fillRect(fx+22,fy+13,8,4);
+    }
+    else if(d.item==='crate'){
+      ctx.fillStyle='#8A6A30';ctx.fillRect(fx+8,fy+10,ST-16,ST-14);
+      ctx.fillStyle='#6A4A20';ctx.fillRect(fx+10,fy+16,ST-20,2);ctx.fillRect(fx+ST/2-1,fy+10,2,ST-14);
+    }
   }
   else if(d.type==='roof'){
     // Building rooftop
