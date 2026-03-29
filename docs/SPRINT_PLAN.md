@@ -1,143 +1,195 @@
 # Satoshi Valley — Sprint Plan
 
-## ✅ COMPLETED
+> Phase-based development. Polish before features. Fun before content.
+
+---
+
+## ✅ PHASE 0: PROTOTYPE (COMPLETE)
 
 ### Sprint 1: "The Foundation"
 - [x] GDD, GitHub repo, GitHub Pages deployment
 - [x] Player movement, mining rigs, economy, day/night, HUD
 
 ### Sprint 2: "The Homestead"
-- [x] Fullscreen, bigger world (80x60→120x90), Perlin noise terrain
+- [x] Fullscreen, bigger world (120×90), Perlin noise terrain
 - [x] River, lake, forest, mountains, buildings, paths, bridge
 - [x] 7 NPCs with deep Bitcoin culture dialogue
 - [x] Day/night cycle, market phases, halving events
 
 ### Sprint 3: "The Economy"
-- [x] Shop system (Ruby), 16-item database
-- [x] Inventory (20-slot grid + hotbar)
-- [x] 3 rig tiers: CPU, GPU, ASIC
-- [x] Tools: wrench (repair), pickaxe (mine)
-- [x] Power: solar panels, batteries, cooling fans, grid fallback
-- [x] Food: bread, coffee (speed boost)
-- [x] Save/load (localStorage + auto-save)
-- [x] 8-bit sound effects + procedural music engine
+- [x] Shop system (Ruby), 20+ item database
+- [x] Inventory (20-slot grid + hotbar), 3 rig tiers
+- [x] Power grid, tools, food, save/load, procedural music
 - [x] Market price fluctuation per phase
 
 ### Sprint 4: "The Daily Loop"
-- [x] Crop system (potato, tomato, corn — grow over days, harvest for sats)
-- [x] Skills system (Mining, Farming, Engineering, Social, Foraging) with XP bars
-- [x] NPC relationship hearts
-- [x] Daily summary screen (end of day recap)
-- [x] 25+ random Bitcoin culture events (China bans, whale moves, etc.)
-- [x] Bitcoin loading tips
+- [x] Crop system (potato, tomato, corn)
+- [x] Skills (Mining, Farming, Engineering, Social, Foraging)
+- [x] NPC hearts, daily summary, 25+ events, loading tips
 
 ### Sprint 5: "Tutorial & Onboarding"
-- [x] 17-step guided tutorial with visual highlights
-- [x] Quest log with 4 chapters and 13 objectives
-- [x] Directional arrows, key hints, HUD highlights
-- [x] Controls bar always visible
+- [x] 17-step tutorial, quest log (4 chapters, 13 objectives)
+- [x] Visual hints, directional arrows, controls bar
 
 ### Sprint 6: "Visual Polish"
-- [x] Detailed mining rig sprites (CPU tower, GPU frame, ASIC S21)
-- [x] Character redesign (hoodie, cap, directional eyes)
-- [x] Building details (log walls, rooftops, chimneys with smoke)
-- [x] Readable text (fixed HiDPI, bumped all fonts)
-- [x] Reference asset pack collected for art direction
+- [x] Detailed rig sprites, character redesign, building details
+- [x] 30+ sprites, readable text, reference art pack
+
+### Sprint 7: "The Citadel"
+- [x] 5-tier upgrade (Shack → Citadel), map growth, menu
+
+### Sprint 8: "Circular Economy"
+- [x] Terraforming tools, Farmer Pete's Market
+- [x] Full core loop: mine → earn → buy → farm → sell → upgrade
 
 ---
 
-## 🔨 IN PROGRESS / NEXT
+## 🔧 PHASE 1: FIX THE FUNDAMENTALS (Q2 2026)
 
-### Sprint 7: "The Citadel" — Building Your Sovereign Compound
-- [ ] Citadel upgrade system (Shack → Cabin → House → Compound → Citadel)
-- [ ] Room building: server room, cold storage vault, workshop
-- [ ] Wall/fence placement system
-- [ ] Interior views when entering buildings
-- [ ] Furniture placement (desk, bed, node rack)
-- [ ] Citadel defense rating (affects events)
+> Priority: Make what exists feel polished before adding more.
 
-### Sprint 8: "The Carnivore Ranch"
-- [ ] Cattle system (buy calves → raise → butcher or sell)
-- [ ] Goat farming (every citadel needs goats)
-- [ ] Bee keeping (honey production)
-- [ ] Meat curing / preservation
-- [ ] Carnivore diet buffs (energy, health, strength)
-- [ ] Seed oils as debuff items (satire)
-- [ ] "Meat market" — sell beef for premium sats
+### Sprint 9: "Controls" — Input Overhaul
+- [ ] Mouse click-to-move with A* pathfinding
+- [ ] Click-to-interact (NPCs, rigs, crops, buildings)
+- [ ] Mouse-driven shop, inventory, item placement
+- [ ] Context-sensitive cursor (hand, crosshair, speech bubble)
+- [ ] Hybrid keyboard + mouse (both always work)
+- [ ] Basic touch support for mobile web
 
-### Sprint 9: "P2P Economy"
-- [ ] P2P trading with NPCs (negotiate prices)
-- [ ] Lightning invoice system (visual representation)
-- [ ] Barter mechanics (trade items directly)
-- [ ] Merchant NPC with traveling inventory
-- [ ] Black market (privacy tools, Tor node)
-- [ ] Price discovery mechanic (supply/demand)
-- [ ] Fiat inflation visualized (Mayor's shop prices go up every cycle)
+### Sprint 10: "Words" — Dialogue & Text
+- [ ] Typewriter text effect with blip sounds
+- [ ] Press-to-advance dialogue (kill auto-timers)
+- [ ] Tutorial overhaul (all steps player-paced)
+- [ ] NPC portraits in dialogue box
+- [ ] Basic dialogue choices (2-3 options)
+- [ ] Proper notification queue (stack + fade)
+- [ ] Word wrap fix on all UI panels
 
-### Sprint 10: "The Bitcoin World"
-- [ ] Fiatropolis region (city, debt, surveillance, CBDC)
-- [ ] Cypherpunk Underground (bunker, Tor network, privacy)
-- [ ] Volcano mining facility (geothermal power)
-- [ ] Lightning Network as fast travel system
-- [ ] Nostr social feed (in-game social network)
-- [ ] Bitcoin conferences (seasonal events with minigames)
-- [ ] The Silk Road quest (morally grey privacy storyline)
+### Sprint 11: "Trade" — Shop & Menu UX
+- [ ] Fix shop reliability bugs
+- [ ] Item preview panel (description, stats, sprite)
+- [ ] Category tabs (Tools | Rigs | Seeds | Animals | Special)
+- [ ] Grey out unaffordable items
+- [ ] Quantity selector (Shift+click for bulk)
+- [ ] Inventory drag & drop
+- [ ] Confirmation on expensive purchases
 
-### Sprint 11: "The Mines" (Dungeon System)
-- [ ] Abandoned data center dungeon below mountains
-- [ ] Procedural floor generation
-- [ ] Hardware drops (old GPUs, cooling parts, cables)
-- [ ] Combat: malware bots, 51% attack swarms
-- [ ] Boss: The Pool Operator
-- [ ] Deeper = better loot but more danger
+### Sprint 12: "Navigate" — Camera, Map & Wayfinding
+- [ ] Smooth camera (lerp follow + movement lead)
+- [ ] Corner minimap
+- [ ] Quest markers (! and ?) above NPCs
+- [ ] Objective compass arrow at screen edge
+- [ ] Full world map overlay (Tab)
+- [ ] Camera stops at map borders
 
-### Sprint 12: "Custom Art & Audio"
-- [ ] Original 16x16 sprite sheet (our own, Bitcoin-themed)
-- [ ] Character sprite sheets with walk/idle/action animations
-- [ ] NPC unique sprite designs
-- [ ] Mining rig sprite sheet (animated fans, LEDs)
-- [ ] Building tileset (cabin, shop, tavern, citadel tiers)
-- [ ] Original pixel art soundtrack (compose or commission)
-- [ ] Environmental sound design
-
-### Sprint 13: "Story & Lore"
-- [ ] All 24 seed phrase fragments placed with lore
-- [ ] Each fragment = Bitcoin history lesson (interactive flashback)
-- [ ] Uncle Toshi's journal entries
-- [ ] 4 story endings based on player choices
-- [ ] The Blocksize Wars questline
-- [ ] Mt. Gox Memorial quest
-- [ ] The Genesis Block discovery
-
-### Sprint 14: "Multiplayer & Modding"
-- [ ] Co-op citadel building (2-4 players)
-- [ ] Visit other players' valleys
-- [ ] Trading between players
-- [ ] Mod support (custom items, NPCs, events)
-- [ ] Community content pipeline
-
-### Sprint 15: "Release Prep"
-- [ ] Steam page + wishlists
-- [ ] Localization (EN, ES, PT, JP)
-- [ ] QA, bug fixing, optimization
-- [ ] Marketing (Bitcoin conferences, Nostr, podcasts)
-- [ ] Early Access launch
+### Sprint 13: "Architecture" — Code Refactor
+- [ ] Split game.js into modules (engine, world, entities, systems, ui, data)
+- [ ] Event bus (pub/sub)
+- [ ] Game state machine (playing, menu, dialogue, shop, cutscene)
+- [ ] ES modules (import/export)
+- [ ] Data-driven items/NPCs/quests (JSON configs)
+- [ ] Debug overlay (FPS, coords, collision, entities)
 
 ---
 
-## 🎯 VISION PILLARS (Always Reference)
+## 🌱 PHASE 2: THE LIVING WORLD (Q3-Q4 2026)
 
-1. **Fun first** — Every mechanic must be enjoyable before the Bitcoin theme
-2. **"Just one more day"** — Always something finishing soon
-3. **Visible progress everywhere** — Skills, hearts, citadel, farm, wallet
-4. **Bitcoin culture is king** — Every NPC, event, item breathes Bitcoin
-5. **Sovereignty as progression** — You're building independence
-6. **Carnivore/citadel lifestyle** — Beef ranch, goats, off-grid, self-sufficient
-7. **Teach without preaching** — Learn Bitcoin through gameplay
-8. **Beautiful world** — Stardew-quality pixel art, warm palette, alive with detail
+### Sprint 14: "Alive" — NPC Schedules & Depth
+- [ ] Daily routines (home → work → tavern → sleep)
+- [ ] NPC pathfinding, 20+ dialogue lines each
+- [ ] Gift system with preferences
+- [ ] Relationship tiers + heart milestone events
+- [ ] Birthdays, group conversations
+
+### Sprint 15: "Ranch" — The Carnivore System
+- [ ] Cattle, chickens, goats, bees — full lifecycle
+- [ ] Animal AI (wander, graze, sleep)
+- [ ] Animal happiness → production quality
+- [ ] Carnivore buffs, seed oil debuffs (satirical)
+- [ ] Meat market at Farmer Pete's
+
+### Sprint 16: "Seasons" — Weather & Time
+- [ ] Weather: sunny, rain, storm, snow
+- [ ] Weather affects gameplay (crops, rigs, NPCs, movement)
+- [ ] Halving seasons with visual changes
+- [ ] Seasonal crops, events, festivals
+- [ ] Particles: rain, snow, leaves, fireflies
+
+### Sprint 17: "Craft" — Expanded Farming & Crafting
+- [ ] 12+ crop types, quality stars, fertilizer
+- [ ] Sprinklers (auto-water, engineering unlock)
+- [ ] Crafting bench, processing machines
+- [ ] Seed maker, preserves for winter
+
+---
+
+## ⚡ PHASE 3: THE BITCOIN WORLD (Q1-Q2 2027)
+
+### Sprint 18: "Trade" — P2P Economy
+- [ ] Haggle mechanic, traveling merchant
+- [ ] Lightning invoices, barter, black market
+- [ ] Fiat inflation (Mayor's prices rise), reputation
+
+### Sprint 19: "Fiatropolis" — The Dystopian City
+- [ ] New region: concrete, surveillance, CBDC
+- [ ] Debt mechanics, conversion quests
+- [ ] Stealth in the city, border checkpoint
+
+### Sprint 20: "Underground" — Cypherpunk Network
+- [ ] Hidden bunker, privacy tools, encrypted messages
+- [ ] The Hermit's backstory, node routing puzzle
+
+### Sprint 21: "Dungeon" — The Mines
+- [ ] Procedural data center dungeon
+- [ ] Enemies, bosses, loot, combat
+- [ ] Risk/reward (die = lose backpack)
+
+### Sprint 22: "Volcano" — Geothermal Mining
+- [ ] Volcanic region, free energy, heat management
+- [ ] Rare minerals, eruption events
+
+---
+
+## 🎨 PHASE 4: ART & STORY (Q3 2027 — Q2 2028)
+
+### Sprint 23: Original Sprites
+### Sprint 24: Original Soundtrack
+### Sprint 25: Story — The 24 Fragments
+### Sprint 26: Cutscenes & Transitions
+
+---
+
+## 🎮 PHASE 5: POLISH (Q3-Q4 2028)
+
+### Sprint 27: Juice & Game Feel
+### Sprint 28: Achievements & Collections
+### Sprint 29: Addiction Hooks
+### Sprint 30: Accessibility & Settings
+
+---
+
+## 🌐 PHASE 6: MULTIPLAYER (2029)
+
+### Sprint 31: Online Features
+### Sprint 32: Modding & User Content
+
+---
+
+## 🚀 PHASE 7: LAUNCH (2030-2031)
+
+### Sprint 33: Godot 4 Port
+### Sprint 34: Release Prep (Steam, localization, QA, marketing)
+### Sprint 35: Full Release + Console Ports
+
+---
+
+## 🎯 CURRENT FOCUS
+
+**Phase 1, Sprint 9: Controls & Input Overhaul**
+
+Priority: Mouse controls → click-to-move → click-to-interact → mouse shop/inventory
 
 ---
 
 *Updated: 2026-03-29*
-*Current version: v0.5.3*
-*Next priority: Text fixes → Citadel building → Carnivore ranch*
+*Version: v0.5.3*

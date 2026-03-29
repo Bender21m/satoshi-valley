@@ -147,6 +147,15 @@ const ITEMS = {
   potato_seed:{name:'Potato Seeds',desc:'Plant on dirt. Grows in 4 days.',icon:'🥔',type:'seed',buy:30,sell:10,stack:true},
   tomato_seed:{name:'Tomato Seeds',desc:'Plant on dirt. Grows in 6 days.',icon:'🍅',type:'seed',buy:60,sell:20,stack:true},
   corn_seed:{name:'Corn Seeds',desc:'Plant on dirt. Grows in 8 days.',icon:'🌽',type:'seed',buy:100,sell:35,stack:true},
+  axe:{name:'Axe',desc:'Chop trees for wood, clear grass for fiber',icon:'🪓',type:'tool',buy:250,sell:100,stack:true},
+  hoe:{name:'Hoe',desc:'Convert grass to farmable dirt',icon:'🌾',type:'tool',buy:200,sell:80,stack:true},
+  shovel:{name:'Shovel',desc:'Pick up placed items back to inventory',icon:'⚒️',type:'tool',buy:150,sell:60,stack:true},
+  immersion_tank:{name:'Immersion Tank',desc:'Advanced cooling — doubles rig lifespan',icon:'🛢️',type:'upgrade',buy:15000,sell:6000,stack:true},
+  mesh_antenna:{name:'Mesh Antenna',desc:'Off-grid comms — boosts social XP gain',icon:'📡',type:'upgrade',buy:3000,sell:1200,stack:true},
+  bitcoin_sign:{name:'Bitcoin Sign',desc:'Decorative ₿ sign for your citadel',icon:'🪧',type:'deco',buy:500,sell:200,stack:true},
+  goat:{name:'Goat',desc:'Produces milk daily. Every citadel needs goats.',icon:'🐐',type:'animal',buy:2000,sell:800,stack:false},
+  cow:{name:'Cow',desc:'Raise for beef — premium sats at the meat market',icon:'🐄',type:'animal',buy:5000,sell:2000,stack:false},
+  bee_hive:{name:'Bee Hive',desc:'Place near flowers — produces honey over time',icon:'🐝',type:'animal',buy:1500,sell:600,stack:false},
 };
 
 // ============================================================
@@ -1160,7 +1169,7 @@ function update(dt) {
     if(jp['arrowup']||jp['w'])shopCur=Math.max(0,shopCur-1);
     if(jp['arrowdown']||jp['s'])shopCur=Math.min((shopMode==='buy'?SHOP_LIST.length:inv.filter(s=>s).length)-1,shopCur+1);
     if(jp['enter']||jp['e']){
-      if(shopMode==='buy'){const id=SHOP_LIST[shopCur],it=ITEMS[id],pr=Math.ceil(it.buy*marketMult());
+      if(shopMode==='buy'){const id=SHOP_LIST[shopCur],it=ITEMS[id];if(!it){sfx.error();return;}const pr=Math.ceil(it.buy*marketMult());
         if(player.wallet>=pr){if(addItem(id)){player.wallet-=pr;sfx.buy();notify(`Bought ${it.icon} ${it.name} (${fmt(pr)})`,2);if(id==='gpu_rig')completeObjective('buy_gpu');}else{notify('Inventory full!',1.5);sfx.error();}}else{notify(`Need ${fmt(pr)} sats!`,1.5);sfx.error();}}
       else{const sell=inv.filter(s=>s&&ITEMS[s.id].sell>0);if(shopCur<sell.length){const s=sell[shopCur],it=ITEMS[s.id],pr=Math.ceil(it.sell*marketMult());removeItem(s.id);player.wallet+=pr;sfx.coin();notify(`Sold ${it.icon} ${it.name} (+${fmt(pr)})`,2);}}
     }
@@ -2015,7 +2024,8 @@ function drawShop(){
   
   if(shopMode==='buy'){
     SHOP_LIST.forEach((id,i)=>{
-      const it=ITEMS[id],pr=Math.ceil(it.buy*mult);
+      const it=ITEMS[id];if(!it)return;
+      const pr=Math.ceil(it.buy*mult);
       const iy=ly+i*rowH;
       if(iy>y+h-35)return;
       
