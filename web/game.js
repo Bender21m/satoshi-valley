@@ -376,8 +376,45 @@ function lerp(a,b,t){return a+(b-a)*t;}
 // ============================================================
 // COLORS - Rich, warm palette
 // ============================================================
+// Seasonal palettes per market phase
+const SEASON_PALETTES = {
+  // Accumulation = Spring: fresh greens, flowers blooming
+  0: {
+    grass:['#1F4D0F','#2A5E18','#347020','#3E8228','#489430'],
+    treeLeaf:['#1A4A10','#2A5A1A','#1E5014','#2E6020','#3A7028'],
+    treeLeafLight:['#3A7028','#4A8035','#5A9040'],
+    flower:['#E8C840','#D04040','#7070E0','#E870B0','#70D0A0','#F0A030'],
+  },
+  // Hype = Summer: bright, lush, vibrant
+  1: {
+    grass:['#1A5A08','#2A6A14','#3A7A20','#4A8A2C','#5A9A38'],
+    treeLeaf:['#1A5A08','#2A6A14','#1E6010','#2E7020','#3A8028'],
+    treeLeafLight:['#4A9030','#5AA040','#6AB050'],
+    flower:['#FFD040','#FF5050','#8080FF','#FF80C0','#80E0B0','#FFB040'],
+  },
+  // Euphoria = Autumn: orange, gold, warm
+  2: {
+    grass:['#3A5A10','#4A6818','#5A7020','#6A7828','#7A8030'],
+    treeLeaf:['#8A5A10','#9A6A18','#AA7A20','#6A4A08','#BA8A28'],
+    treeLeafLight:['#CC8820','#DD9930','#EEAA40'],
+    flower:['#DDA030','#CC5020','#AA6030','#DD7020','#BB6030','#EE8840'],
+  },
+  // Capitulation = Winter: muted, grey-blue, bare
+  3: {
+    grass:['#2A3A20','#3A4A28','#4A5A30','#3A4828','#4A5830'],
+    treeLeaf:['#3A4A28','#4A5A30','#3A4828','#4A5830','#5A6838'],
+    treeLeafLight:['#5A6838','#6A7848','#7A8858'],
+    flower:['#887860','#786850','#AA9870','#988868','#887858','#998868'],
+  },
+};
+
+function getSeasonalColor(key) {
+  const sp = SEASON_PALETTES[econ.phase];
+  return sp && sp[key] ? sp[key] : null;
+}
+
 const C = {
-  // Greens (5 shades for depth)
+  // Greens (5 shades for depth) — base, overridden by season
   grass:['#1F4D0F','#2A5E18','#347020','#3E8228','#489430'],
   darkGrass:'#1A4A0C',
   // Nature
@@ -2437,9 +2474,15 @@ function update(dt) {
   if (player.moving && !isNight && Math.random() < 0.15) {
     if(ambient.length<100) ambient.push({x:player.x*SCALE-cam.x+(Math.random()-0.5)*10,y:player.y*SCALE-cam.y+15,type:'dust',vx:(Math.random()-0.5)*20+weather.windX*10,vy:-10-Math.random()*15,life:0.8+Math.random()*0.5,maxLife:1.3,size:2,color:'#B0A080'});
   }
-  // Leaves (windy/storm)
-  if ((weather.current === 'storm' || weather.windX > 0.5) && ambient.length < 20 && Math.random() < 0.01) {
-    if(ambient.length<100) ambient.push({x:-20,y:Math.random()*canvas.height,type:'leaf',vx:60+Math.random()*40,vy:20+Math.random()*30,life:6+Math.random()*4,maxLife:10,size:4,color:['#8A6A20','#AA8830','#6A8A20','#CC8833'][Math.floor(Math.random()*4)],phase:Math.random()*6});
+  // Leaves (windy/storm, or always during Euphoria = autumn)
+  const leafChance = econ.phase===2 ? 0.03 : ((weather.current==='storm'||weather.windX>0.5) ? 0.01 : 0);
+  if (leafChance > 0 && ambient.length < 100 && Math.random() < leafChance) {
+    const autumnColors = econ.phase===2 ? ['#CC6620','#DD8830','#EE9940','#CC4410','#DDAA30'] : ['#8A6A20','#AA8830','#6A8A20','#CC8833'];
+    ambient.push({x:-20,y:Math.random()*canvas.height,type:'leaf',vx:60+Math.random()*40,vy:20+Math.random()*30,life:6+Math.random()*4,maxLife:10,size:4,color:autumnColors[Math.floor(Math.random()*autumnColors.length)],phase:Math.random()*6});
+  }
+  // Snow particles during Capitulation (winter)
+  if (econ.phase===3 && !interior && ambient.length<100 && Math.random()<0.04) {
+    ambient.push({x:Math.random()*canvas.width,y:-10,type:'snow',vx:(Math.random()-0.5)*20+weather.windX*15,vy:30+Math.random()*20,life:6+Math.random()*4,maxLife:10,size:2+Math.random()*2,color:'#FFFFFF',phase:Math.random()*6});
   }
   // Update ambient
   for (let i = ambient.length - 1; i >= 0; i--) {
@@ -2458,6 +2501,10 @@ function update(dt) {
       p.phase += dt * 4;
       p.x += p.vx * dt;
       p.y += (p.vy + Math.sin(p.phase) * 20) * dt;
+    } else if (p.type === 'snow') {
+      p.phase += dt * 1.5;
+      p.x += (p.vx + Math.sin(p.phase) * 10) * dt; // gentle drift
+      p.y += p.vy * dt;
     } else {
       p.x += p.vx * dt; p.y += p.vy * dt;
     }
@@ -2530,9 +2577,12 @@ function drawTile(x,y,tile){
       // Use Perlin noise for smooth, organic color blending (no checkerboard!)
       const gn=fbm(x*0.15+0.5,y*0.15+0.5,2); // smooth noise 0-1
       const gn2=fbm(x*0.3+10,y*0.3+10,2); // finer detail layer
-      // Blend between 2-3 greens smoothly based on noise
-      const baseR=Math.floor(30+gn*30);const baseG=Math.floor(90+gn*50+gn2*20);const baseB=Math.floor(15+gn*20);
-      ctx.fillStyle=`rgb(${baseR},${baseG},${baseB})`;ctx.fillRect(sx,sy,ST,ST);
+      // Seasonal color shift based on market phase
+      const sR=[0,0,20,0][econ.phase]; // Euphoria adds warmth
+      const sG=[0,10,-10,-20][econ.phase]; // Capitulation desaturates
+      const sB=[0,0,0,10][econ.phase]; // Capitulation adds blue
+      const baseR=Math.floor(30+gn*30+sR);const baseG=Math.floor(90+gn*50+gn2*20+sG);const baseB=Math.floor(15+gn*20+sB);
+      ctx.fillStyle=`rgb(${Math.max(0,Math.min(255,baseR))},${Math.max(0,Math.min(255,baseG))},${Math.max(0,Math.min(255,baseB))})`;ctx.fillRect(sx,sy,ST,ST);
       // Subtle lighter patches using second noise octave
       if(gn2>0.55){ctx.fillStyle=`rgba(80,160,50,${(gn2-0.55)*0.4})`;ctx.fillRect(sx,sy,ST,ST);}
       // Darker patches for depth
@@ -2795,15 +2845,17 @@ function drawDecor(d) {
     ctx.beginPath();ctx.ellipse(tcx-tbw/2-2,sy+ST,5*sz,3*sz,0,0,Math.PI*2);ctx.fill();
     ctx.beginPath();ctx.ellipse(tcx+tbw/2+2,sy+ST,4*sz,3*sz,0,0,Math.PI*2);ctx.fill();
     // Canopy — multiple overlapping layers for depth, not single circles
-    // Back layer (darkest, largest)
-    ctx.fillStyle=C.treeLeaf[d.v%5];
+    // Back layer (darkest, largest) — seasonal colors
+    const sleaf=getSeasonalColor('treeLeaf')||C.treeLeaf;
+    const sleafL=getSeasonalColor('treeLeafLight')||C.treeLeafLight;
+    ctx.fillStyle=sleaf[d.v%5];
     ctx.beginPath();ctx.ellipse(tcx+sway*0.5,tcy-2*sz,26*sz,20*sz,0,0,Math.PI*2);ctx.fill();
     // Mid layer clusters
-    ctx.fillStyle=C.treeLeaf[(d.v+1)%5];
+    ctx.fillStyle=sleaf[(d.v+1)%5];
     ctx.beginPath();ctx.ellipse(tcx-10*sz+sway,tcy+4*sz,16*sz,14*sz,0,0,Math.PI*2);ctx.fill();
     ctx.beginPath();ctx.ellipse(tcx+10*sz+sway*0.8,tcy+2*sz,15*sz,13*sz,0,0,Math.PI*2);ctx.fill();
     // Front highlight layer (lightest, smaller)
-    ctx.fillStyle=C.treeLeafLight[d.v%3];
+    ctx.fillStyle=sleafL[d.v%3];
     ctx.beginPath();ctx.ellipse(tcx+4*sz+sway*1.5,tcy-8*sz,12*sz,10*sz,0,0,Math.PI*2);ctx.fill();
     ctx.beginPath();ctx.ellipse(tcx-6*sz+sway,tcy+1*sz,10*sz,8*sz,0,0,Math.PI*2);ctx.fill();
     // Dappled light spots on canopy
@@ -4365,6 +4417,40 @@ function drawHUD(){
       ctx.fillRect(mmX+nx*scaleX-1,mmY+ny*scaleY-1,3,3);
     }
 
+    // Mining rigs (orange dots)
+    for(const r of rigs){
+      if(!r.interior){
+        const rx=r.x/TILE,ry=r.y/TILE;
+        ctx.fillStyle=r.powered&&r.dur>0&&!r.oh?'#F7931A':'#663300';
+        ctx.fillRect(mmX+rx*scaleX-1,mmY+ry*scaleY-1,3,3);
+      }
+    }
+
+    // Crops (green dots)
+    for(const cr of crops){
+      ctx.fillStyle=cr.dayAge>=CROP_TYPES[cr.type].grow?'#FFD700':'#44CC44';
+      ctx.fillRect(mmX+cr.x*scaleX,mmY+cr.y*scaleY,2,2);
+    }
+
+    // Placed items (yellow dots for solar, blue for battery)
+    for(const p of placed){
+      const px2=p.x/TILE/SCALE,py2=p.y/TILE/SCALE;
+      if(p.type==='solar_panel')ctx.fillStyle='#FFCC00';
+      else if(p.type==='battery')ctx.fillStyle='#4488FF';
+      else if(p.type==='chest')ctx.fillStyle='#AA8844';
+      else ctx.fillStyle='#888';
+      ctx.fillRect(mmX+p.x/TILE*scaleX-1,mmY+p.y/TILE*scaleY-1,2,2);
+    }
+
+    // Seed fragments (pulsing gold)
+    const sfGlow=0.5+Math.sin(performance.now()/400)*0.5;
+    for(const d of decor){
+      if(d.type==='seed_fragment'){
+        ctx.fillStyle=`rgba(255,215,0,${sfGlow})`;
+        ctx.beginPath();ctx.arc(mmX+d.x*scaleX,mmY+d.y*scaleY,2,0,Math.PI*2);ctx.fill();
+      }
+    }
+
     // Animals (tiny dots)
     for(const a of animals){
       const ax=a.x/TILE, ay=a.y/TILE;
@@ -5000,6 +5086,12 @@ function draw(){
       ctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
       ctx.globalAlpha = 1;
       ctx.restore();
+    } else if (p.type === 'snow') {
+      ctx.fillStyle = 'rgba(255,255,255,' + (alpha * 0.7) + ')';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+      // Subtle sparkle
+      ctx.fillStyle = 'rgba(220,240,255,' + (alpha * 0.3) + ')';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2); ctx.fill();
     } else { // dust
       ctx.fillStyle = p.color;
       ctx.globalAlpha = alpha * 0.4;
