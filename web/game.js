@@ -867,6 +867,35 @@ function generateMap() {
   // Bitcoin graffiti / easter eggs
   decor.push({ x: homeX+20, y: homeY+5, type: 'sign', text: "21M" });
   decor.push({ x: homeX-8, y: homeY-8, type: 'sign', text: "HODL" });
+  
+  // ---- VILLAGE DETAILS — Make the world feel lived-in ----
+  // Lamp posts along main road
+  for(let lx=homeX-12;lx<=homeX+20;lx+=6){
+    decor.push({x:lx,y:homeY+2,type:'lamp'});
+  }
+  // Benches near buildings
+  decor.push({x:homeX+2,y:homeY+4,type:'bench'});
+  decor.push({x:homeX+18,y:homeY+4,type:'bench'});
+  decor.push({x:homeX+13,y:homeY-5,type:'bench'}); // near town hall
+  // Well in village center
+  decor.push({x:homeX+5,y:homeY+5,type:'well'});
+  // Market stalls near Farmer Pete
+  decor.push({x:homeX+4,y:homeY+9,type:'market_stall',goods:'🥔🍅🌽'});
+  decor.push({x:homeX+7,y:homeY+9,type:'market_stall',goods:'🥩🧀🍯'});
+  // Barrels near tavern
+  decor.push({x:homeX+19,y:homeY+14,type:'barrel'});
+  decor.push({x:homeX+19,y:homeY+15,type:'barrel'});
+  // Notice board in village center  
+  decor.push({x:homeX+6,y:homeY+3,type:'notice_board'});
+  // Flower planters along shop front
+  decor.push({x:homeX+4,y:homeY+15,type:'planter'});
+  decor.push({x:homeX+11,y:homeY+15,type:'planter'});
+  // Flag pole at town hall
+  decor.push({x:homeX+16,y:homeY-11,type:'btc_flag'});
+  // Woodpile near shed
+  decor.push({x:homeX-19,y:homeY-3,type:'woodpile'});
+  // Hay bale near garden
+  decor.push({x:gardenX+9,y:gardenY+3,type:'hay_bale'});
   decor.push({ x: 30, y: 25, type: 'sign', text: "In code we trust" });
   
   // ---- INTERIOR DECORATIONS ----
@@ -3032,6 +3061,114 @@ function drawDecor(d) {
     ctx.beginPath();ctx.moveTo(sx+ST/2-5,sy+ST/2+2);ctx.lineTo(sx+ST/2+3,sy+ST/2+5);ctx.stroke();
     // Moss (on some rocks)
     if(d.v===0){ctx.fillStyle='rgba(60,120,40,0.25)';ctx.beginPath();ctx.ellipse(sx+ST/2+6,sy+ST/2+6,5,3,0,0,Math.PI*2);ctx.fill();}
+  }
+  else if(d.type==='lamp'){
+    // Street lamp — warm glow at night
+    const lampH=ST*1.2;
+    ctx.fillStyle='#444';ctx.fillRect(sx+ST/2-2,sy+ST-lampH,4,lampH); // pole
+    ctx.fillStyle='#555';ctx.fillRect(sx+ST/2-8,sy+ST-lampH-2,16,4); // arm
+    ctx.fillStyle='#666';ctx.fillRect(sx+ST/2-6,sy+ST-lampH+2,12,6); // lamp housing
+    // Light at night
+    const isNight=getHour()>=19||getHour()<6;
+    if(isNight){
+      ctx.fillStyle='rgba(255,220,140,0.08)';ctx.beginPath();ctx.arc(sx+ST/2,sy+ST,40,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='rgba(255,230,160,0.15)';ctx.beginPath();ctx.arc(sx+ST/2,sy+ST,20,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#FFDD88';ctx.fillRect(sx+ST/2-4,sy+ST-lampH+4,8,4);
+    } else {
+      ctx.fillStyle='#AAA';ctx.fillRect(sx+ST/2-3,sy+ST-lampH+4,6,3);
+    }
+  }
+  else if(d.type==='bench'){
+    // Wooden park bench
+    ctx.fillStyle='#5A3A1A';
+    ctx.fillRect(sx+4,sy+ST/2+4,ST-8,4); // seat
+    ctx.fillRect(sx+4,sy+ST/2+2,ST-8,3); // back
+    ctx.fillRect(sx+6,sy+ST/2+6,4,10); // left leg
+    ctx.fillRect(sx+ST-10,sy+ST/2+6,4,10); // right leg
+    ctx.fillStyle='#7A5A30';
+    ctx.fillRect(sx+6,sy+ST/2+4,ST-12,2); // seat highlight
+  }
+  else if(d.type==='well'){
+    // Stone well
+    ctx.fillStyle='#606068';ctx.fillRect(sx+4,sy+8,ST-8,ST-8); // base
+    ctx.fillStyle='#707078';ctx.fillRect(sx+6,sy+10,ST-12,ST-12); // inner
+    ctx.fillStyle='#2266AA';ctx.fillRect(sx+8,sy+14,ST-16,ST-18); // water
+    // Roof
+    ctx.fillStyle='#5A3A1A';ctx.fillRect(sx+2,sy+2,ST-4,8);
+    ctx.fillStyle='#6A4A2A';ctx.fillRect(sx+ST/2-2,sy-6,4,10); // post
+    ctx.fillStyle='#8A6A40';ctx.fillRect(sx,sy,ST,4); // roof top
+    // Bucket
+    ctx.fillStyle='#8A6A40';ctx.fillRect(sx+ST/2+4,sy+12,6,8);
+  }
+  else if(d.type==='market_stall'){
+    // Market stall with displayed goods
+    ctx.fillStyle='#7A5A30';ctx.fillRect(sx,sy+ST/2,ST,ST/2); // counter
+    ctx.fillStyle='#8A6A40';ctx.fillRect(sx+2,sy+ST/2+2,ST-4,ST/2-4); // counter top
+    // Striped awning
+    for(let i=0;i<ST;i+=8){
+      ctx.fillStyle=i%16<8?'#CC4444':'#EEEECC';
+      ctx.fillRect(sx+i,sy+ST/2-8,8,10);
+    }
+    // Goods on counter
+    if(d.goods){ctx.font='12px serif';ctx.textAlign='center';ctx.fillText(d.goods,sx+ST/2,sy+ST/2+ST/4+4);}
+  }
+  else if(d.type==='barrel'){
+    ctx.fillStyle='#6A4A20';
+    ctx.beginPath();ctx.ellipse(sx+ST/2,sy+ST/2+4,12,16,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#8A6A40';ctx.fillRect(sx+ST/2-10,sy+ST/2-4,20,3);ctx.fillRect(sx+ST/2-10,sy+ST/2+8,20,3);
+    ctx.fillStyle='#5A3A10';ctx.fillRect(sx+ST/2-1,sy+ST/2-12,2,24);
+  }
+  else if(d.type==='notice_board'){
+    // Village notice board
+    ctx.fillStyle='#5A3A1A';ctx.fillRect(sx+ST/2-2,sy+ST/2,4,ST/2); // post
+    ctx.fillStyle='#7A5A30';ctx.fillRect(sx+2,sy+2,ST-4,ST/2); // board
+    ctx.fillStyle='#8A6A40';ctx.fillRect(sx+4,sy+4,ST-8,ST/2-4); // board face
+    // Pinned notices
+    ctx.fillStyle='#EEEECC';ctx.fillRect(sx+8,sy+8,12,10); // notice 1
+    ctx.fillStyle='#EEDDBB';ctx.fillRect(sx+24,sy+6,12,12); // notice 2
+    ctx.fillStyle='#FF4444';ctx.fillRect(sx+12,sy+7,3,3); // pin 1
+    ctx.fillStyle='#4444FF';ctx.fillRect(sx+28,sy+5,3,3); // pin 2
+    // ₿ on a notice
+    ctx.fillStyle=C.orange;ctx.font='8px serif';ctx.textAlign='center';ctx.fillText('₿',sx+14,sy+16);
+  }
+  else if(d.type==='planter'){
+    // Flower planter box
+    ctx.fillStyle='#6A4A2A';ctx.fillRect(sx+4,sy+ST/2,ST-8,ST/2-2); // box
+    ctx.fillStyle='#5A3A1A';ctx.fillRect(sx+4,sy+ST/2,ST-8,4); // rim
+    // Flowers
+    ctx.fillStyle='#3A7020';ctx.fillRect(sx+10,sy+ST/2-8,2,10);ctx.fillRect(sx+20,sy+ST/2-10,2,12);ctx.fillRect(sx+30,sy+ST/2-6,2,8);
+    const flowerColors=['#FF6688','#FFCC44','#8888FF'];
+    flowerColors.forEach((c,i)=>{ctx.fillStyle=c;ctx.beginPath();ctx.arc(sx+11+i*10,sy+ST/2-10+i*2,4,0,Math.PI*2);ctx.fill();});
+  }
+  else if(d.type==='btc_flag'){
+    // Bitcoin flag on pole
+    const flagWave=Math.sin(t*2+d.x)*3;
+    ctx.fillStyle='#666';ctx.fillRect(sx+ST/2-1,sy-ST,3,ST*2); // pole
+    ctx.fillStyle='#888';ctx.fillRect(sx+ST/2-3,sy-ST-2,7,4); // finial
+    // Flag
+    ctx.fillStyle=C.orange;
+    ctx.beginPath();ctx.moveTo(sx+ST/2+2,sy-ST+4);ctx.lineTo(sx+ST/2+24+flagWave,sy-ST+10);ctx.lineTo(sx+ST/2+22+flagWave,sy-ST+22);ctx.lineTo(sx+ST/2+2,sy-ST+18);ctx.closePath();ctx.fill();
+    // ₿ on flag
+    ctx.fillStyle='#FFF';ctx.font='bold 10px serif';ctx.textAlign='center';ctx.fillText('₿',sx+ST/2+13+flagWave/2,sy-ST+15);
+  }
+  else if(d.type==='woodpile'){
+    // Stack of logs
+    ctx.fillStyle='#6A4A2A';
+    for(let i=0;i<4;i++){ctx.beginPath();ctx.ellipse(sx+8+i*8,sy+ST-6,6,4,0,0,Math.PI*2);ctx.fill();}
+    for(let i=0;i<3;i++){ctx.beginPath();ctx.ellipse(sx+12+i*8,sy+ST-14,6,4,0,0,Math.PI*2);ctx.fill();}
+    for(let i=0;i<2;i++){ctx.beginPath();ctx.ellipse(sx+16+i*8,sy+ST-22,6,4,0,0,Math.PI*2);ctx.fill();}
+    // Log ends (lighter circles)
+    ctx.fillStyle='#AA8855';
+    for(let i=0;i<4;i++){ctx.beginPath();ctx.arc(sx+8+i*8,sy+ST-6,3,0,Math.PI*2);ctx.fill();}
+  }
+  else if(d.type==='hay_bale'){
+    ctx.fillStyle='#CCAA44';ctx.fillRect(sx+4,sy+ST/2-2,ST-8,ST/2+2);
+    ctx.fillStyle='#DDBB55';ctx.fillRect(sx+6,sy+ST/2,ST-12,ST/2-2);
+    // Straw texture
+    ctx.fillStyle='rgba(200,170,60,0.4)';
+    for(let i=0;i<5;i++)ctx.fillRect(sx+6+i*7,sy+ST/2+2,1,ST/2-6);
+    // Binding
+    ctx.fillStyle='#886622';ctx.fillRect(sx+4,sy+ST/2+8,ST-8,3);
   }
   else if(d.type==='sign'){
     ctx.fillStyle='#6A4A2A';ctx.fillRect(sx+ST/2-2,sy+ST/2,4,ST/2);
