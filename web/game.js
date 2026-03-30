@@ -35,7 +35,24 @@ const sfx = {
   block() { [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,.3,'sine',.07),i*120)); },
   coin() { tone(880,.05,'sine',.03); setTimeout(()=>tone(1100,.07,'sine',.03),60); },
   repair() { [300,400,500].forEach((f,i)=>setTimeout(()=>tone(f,.08,'square',.03),i*100)); },
-  step() { if(Math.random()<0.25) tone(80+Math.random()*40,.03,'triangle',.012); },
+  step(tile) {
+    // Terrain-based footstep sounds
+    if(tile===T.GRASS||tile===T.TALLGRASS||tile===T.FLOWER||tile===T.MUSHROOM){
+      if(Math.random()<0.25) tone(60+Math.random()*20,.04,'triangle',.008);
+    } else if(tile===T.PATH||tile===T.DIRT){
+      if(Math.random()<0.3) tone(100+Math.random()*40,.04,'square',.018);
+    } else if(tile===T.FLOOR||tile===T.SHOP){
+      if(Math.random()<0.3) tone(200+Math.random()*50,.05,'sine',.015);
+    } else if(tile===T.STONE||tile===T.CLIFF){
+      if(Math.random()<0.25) tone(300+Math.random()*100,.03,'square',.020);
+    } else if(tile===T.SAND){
+      if(Math.random()<0.3){tone(800+Math.random()*200,.06,'triangle',.005);tone(820+Math.random()*200,.06,'triangle',.005);}
+    } else if(tile===T.BRIDGE){
+      if(Math.random()<0.3) tone(150+Math.random()*30,.05,'triangle',.015);
+    } else {
+      if(Math.random()<0.25) tone(80+Math.random()*40,.03,'triangle',.012);
+    }
+  },
   menuOpen() { tone(600,.05,'sine',.03); tone(800,.07,'sine',.02); },
   menuClose() { tone(800,.05,'sine',.02); tone(600,.07,'sine',.03); },
   story() { tone(440,.3,'sine',.04); setTimeout(()=>tone(554,.3,'sine',.03),300); setTimeout(()=>tone(659,.4,'sine',.04),600); },
@@ -90,6 +107,23 @@ canvas.addEventListener('mousemove', e => {
 
 canvas.addEventListener('click', e => {
   if (gameState !== 'playing') return;
+  // Pause menu click
+  if (pauseOpen) {
+    const pw=320,ph=60+PAUSE_ITEMS.length*50,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+    PAUSE_ITEMS.forEach((item,i)=>{
+      const iy=py+50+i*50;
+      if(e.clientX>=px+20&&e.clientX<=px+pw-20&&e.clientY>=iy&&e.clientY<=iy+40){
+        pauseCur=i;
+        if(item==='Resume'){pauseOpen=false;sfx.menuClose();}
+        else if(item==='Save Game'){saveGame();pauseOpen=false;}
+        else if(item==='Load Game'){loadGame();pauseOpen=false;}
+        else if(item==='Music'){toggleMusic();}
+        else if(item==='Controls'){showControls=true;pauseOpen=false;}
+        else if(item==='Quit to Title'){gameState='intro';introStep=8;pauseOpen=false;shopOpen=false;invOpen=false;citadelMenuOpen=false;dlg=null;sfx.menuClose();}
+      }
+    });
+    return;
+  }
   if (dlg){if(!dlg.done){dlg.displayedChars=dlg.fullText.length;dlg.done=true;}else{dlg=null;}return;}
   if (citadelMenuOpen||showObjectives||showDaySummary||showSkills||showControls) return;
   // Minimap click — consume the click so it doesn't trigger movement
@@ -1173,6 +1207,9 @@ function createDaySummary() {
 let showControls = false;
 let citadelTier = 0;
 let citadelMenuOpen = false;
+let pauseOpen = false;
+let pauseCur = 0;
+const PAUSE_ITEMS = ['Resume','Save Game','Load Game','Music','Controls','Quit to Title'];
 
 // ============================================================
 // CITADEL UPGRADE TIERS
@@ -1469,6 +1506,24 @@ let tutTimer = 0, tutTriggered = false;
 function update(dt) {
   if (gameState === 'intro') { updateIntro(dt); return; }
 
+  // Pause freeze — nothing updates while paused
+  if (pauseOpen) {
+    if(jp['escape']){pauseOpen=false;sfx.menuClose();}
+    else if(jp['arrowup']||jp['w'])pauseCur=Math.max(0,pauseCur-1);
+    else if(jp['arrowdown']||jp['s'])pauseCur=Math.min(PAUSE_ITEMS.length-1,pauseCur+1);
+    else if(jp['enter']||jp['e']){
+      const _psel=PAUSE_ITEMS[pauseCur];
+      if(_psel==='Resume'){pauseOpen=false;sfx.menuClose();}
+      else if(_psel==='Save Game'){saveGame();pauseOpen=false;}
+      else if(_psel==='Load Game'){loadGame();pauseOpen=false;}
+      else if(_psel==='Music'){toggleMusic();}
+      else if(_psel==='Controls'){showControls=true;pauseOpen=false;}
+      else if(_psel==='Quit to Title'){gameState='intro';introStep=8;pauseOpen=false;shopOpen=false;invOpen=false;citadelMenuOpen=false;dlg=null;sfx.menuClose();}
+    }
+    for(const k in jp)jp[k]=false;
+    return;
+  }
+
   // Transition freeze — nothing updates while fading
   if (transition) {
     transition.timer += dt;
@@ -1581,7 +1636,7 @@ function update(dt) {
     }else if(shopOpen){shopOpen=false;sfx.menuClose();}
   }
   if(jp['i']||jp['tab']){if(!shopOpen){invOpen=!invOpen;invOpen?sfx.menuOpen():sfx.menuClose();}}
-  if(jp['escape']){if(chestOpen){chestOpen=false;sfx.menuClose();}else if(shopOpen){shopOpen=false;sfx.menuClose();}else if(citadelMenuOpen){citadelMenuOpen=false;sfx.menuClose();}else if(invOpen){invOpen=false;sfx.menuClose();}else if(dlg){if(!dlg.done){dlg.displayedChars=dlg.fullText.length;dlg.done=true;}else{dlg=null;}}else if(showObjectives)showObjectives=false;}
+  if(jp['escape']){if(pauseOpen){pauseOpen=false;sfx.menuClose();}else if(chestOpen){chestOpen=false;sfx.menuClose();}else if(shopOpen){shopOpen=false;sfx.menuClose();}else if(citadelMenuOpen){citadelMenuOpen=false;sfx.menuClose();}else if(invOpen){invOpen=false;sfx.menuClose();}else if(dlg){if(!dlg.done){dlg.displayedChars=dlg.fullText.length;dlg.done=true;}else{dlg=null;}}else if(showObjectives)showObjectives=false;else if(showControls)showControls=false;else if(showSkills)showSkills=false;else{pauseOpen=true;pauseCur=0;sfx.menuOpen();}}
   if(jp['p'])saveGame();if(jp['l'])loadGame();
   for(let n=0;n<=9;n++)if(jp[n.toString()])selSlot=n===0?9:n-1;
   
@@ -1626,7 +1681,7 @@ function update(dt) {
       if(!isSolid(Math.floor((nx-r)/TILE),Math.floor((player.y-r)/TILE))&&!isSolid(Math.floor((nx+r)/TILE),Math.floor((player.y+r)/TILE))&&!isSolid(Math.floor((nx-r)/TILE),Math.floor((player.y+r)/TILE))&&!isSolid(Math.floor((nx+r)/TILE),Math.floor((player.y-r)/TILE)))player.x=nx;
       if(!isSolid(Math.floor((player.x-r)/TILE),Math.floor((ny-r)/TILE))&&!isSolid(Math.floor((player.x+r)/TILE),Math.floor((ny+r)/TILE))&&!isSolid(Math.floor((player.x-r)/TILE),Math.floor((ny+r)/TILE))&&!isSolid(Math.floor((player.x+r)/TILE),Math.floor((ny-r)/TILE)))player.y=ny;
       player.wt+=dt;if(player.wt>.15){player.wt=0;player.wf=(player.wf+1)%4;}
-      footT+=dt;if(footT>.35){footT=0;sfx.step();}
+      footT+=dt;if(footT>.35){footT=0;const _sm=interior?interior.map:map;const _stx=Math.floor(player.x/TILE),_sty=Math.floor(player.y/TILE);const _stile=(_sm[_sty]&&_sm[_sty][_stx]!=null)?_sm[_sty][_stx]:T.GRASS;sfx.step(_stile);}
       
       // Check seed fragments
       for(let i=decor.length-1;i>=0;i--){
@@ -2969,6 +3024,30 @@ function drawNPC(n){
   ctx.fillStyle=C.skin;ctx.fillRect(px+12,py+2,w-24,16);
   ctx.fillStyle=n.hair;ctx.fillRect(px+10,py-2,w-20,8);
   ctx.fillStyle=C.black;ctx.fillRect(px+16,py+8,3,3);ctx.fillRect(px+w-19,py+8,3,3);
+  // Quest markers
+  initRelationships();
+  const rel=relationships[n.name];
+  if(rel){
+    const t=performance.now()/1000;
+    const bob=Math.sin(t*2.5)*4; // bobbing animation
+    const markerY=py-22+bob;
+    if(rel.hearts>=10){
+      // Max hearts — green heart
+      ctx.fillStyle='#44FF88';ctx.font=`bold 18px serif`;ctx.textAlign='center';
+      ctx.fillText('♥',sx,markerY);
+    } else if(n.name==='The Hermit'&&foundWords.length<5){
+      // Seed fragment hint — orange puzzle
+      ctx.font=`16px serif`;ctx.textAlign='center';
+      ctx.fillText('🧩',sx,markerY);
+    } else if(rel.talked===false){
+      // Hasn't talked today — yellow !
+      ctx.fillStyle='#FFD700';
+      ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=3;
+      ctx.font=`bold 20px ${FONT}`;ctx.textAlign='center';
+      ctx.fillText('!',sx,markerY);
+      ctx.shadowBlur=0;
+    }
+  }
   const dist=Math.hypot(n.x-player.x,n.y-player.y);
   if(dist<48){
     ctx.fillStyle=C.white;ctx.font=`bold 13px ${FONT}`;ctx.textAlign='center';ctx.fillText(n.name,sx,py-8);
@@ -3286,6 +3365,7 @@ function drawHUD(){
   if(showSkills) drawSkillsPanel();
   if(showControls) drawControlsPanel();
   if(showDaySummary && daySummary) drawDaySummary();
+  if(pauseOpen) drawPauseMenu();
 
   // Minimap
   if(minimapOpen && !interior){
@@ -3730,6 +3810,30 @@ function drawDaySummary() {
   ctx.fillStyle = C.orange; ctx.font = `bold 13px ${FONT}`; ctx.textAlign = 'center';
   ctx.fillText('Press ENTER to continue', canvas.width / 2, y + h - 20);
   ctx.globalAlpha = 1;
+}
+
+// ---- Pause Menu ----
+function drawPauseMenu() {
+  // Dark overlay
+  ctx.fillStyle='rgba(0,0,0,0.65)';ctx.fillRect(0,0,canvas.width,canvas.height);
+  const pw=320,ph=60+PAUSE_ITEMS.length*50;
+  const px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
+  panel(px,py,pw,ph);
+  ctx.fillStyle=C.hud;ctx.font=`bold 20px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText('⏸ PAUSED',canvas.width/2,py+30);
+  PAUSE_ITEMS.forEach((item,i)=>{
+    const iy=py+50+i*50;
+    const isSel=i===pauseCur;
+    ctx.fillStyle=isSel?'rgba(247,147,26,0.2)':'rgba(20,20,25,0.6)';
+    rr(px+20,iy,pw-40,40,5);
+    ctx.strokeStyle=isSel?C.hud:'#333';ctx.lineWidth=isSel?2:1;ctx.stroke();
+    let label=item;
+    if(item==='Music') label='Music: '+(musicOn?'ON ♪':'OFF ✕');
+    ctx.fillStyle=isSel?C.gold:C.white;ctx.font=`bold 16px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(label,canvas.width/2,iy+26);
+  });
+  ctx.fillStyle=C.gray;ctx.font=`11px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText('↑↓ Navigate  |  Enter: Select  |  Esc: Resume',canvas.width/2,py+ph-12);
 }
 
 // ---- NPC hearts in HUD near NPC ----
