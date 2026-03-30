@@ -504,6 +504,12 @@ const ITEMS = {
   shed_upgrade:{name:'Shed Expansion Kit',desc:'Doubles mining shed capacity',icon:'🏗️',type:'quest',buy:0,sell:0,stack:false},
   citadel_materials:{name:'Citadel Materials',desc:'Reduces next citadel upgrade cost by 25%',icon:'🏰',type:'quest',buy:0,sell:0,stack:false},
   fishing_rod:{name:'Fishing Rod',desc:'Cast into water. Press R facing water!',icon:'🎣',type:'tool',buy:500,sell:200,stack:true},
+  // Late-game sat sinks
+  satellite_node:{name:'Satellite Node',desc:'Broadcast Bitcoin to the world. Endgame flex.',icon:'🛰️',type:'deco',buy:500000,sell:200000,stack:false},
+  freedom_monument:{name:'Freedom Monument',desc:'A monument to financial sovereignty.',icon:'🗽',type:'deco',buy:200000,sell:80000,stack:false},
+  bitcoin_academy:{name:'Bitcoin Academy',desc:'Teach the village about sound money.',icon:'🎓',type:'deco',buy:100000,sell:40000,stack:false},
+  rocket_to_moon:{name:'Rocket to the Moon',desc:'We\'re all gonna make it. 🚀',icon:'🚀',type:'deco',buy:1000000,sell:400000,stack:false},
+  volcano_drill:{name:'Volcano Mining License',desc:'Unlock geothermal mining. Coming soon!',icon:'🌋',type:'quest',buy:250000,sell:0,stack:false},
   salmon:{name:'Salmon',desc:'Fresh-caught salmon. Sell or eat.',icon:'🐟',type:'food',buy:0,sell:300,stack:true},
   trout:{name:'Trout',desc:'Rainbow trout. Tasty.',icon:'🐠',type:'food',buy:0,sell:200,stack:true},
   bitcoin_fish:{name:'Bitcoin Fish',desc:'A legendary golden fish with a ₿ mark. Extremely rare!',icon:'🐡',type:'food',buy:0,sell:2000,stack:true},
@@ -1131,7 +1137,8 @@ const npcs = [
       '"Every sat you earn is a sat they can\'t print."',
       '"I remember the first time I ran my own node. Felt like freedom."',
     ],
-    wp:[{x:homeX+8,y:homeY},{x:homeX+11,y:homeY},{x:homeX+11,y:homeY+2},{x:homeX+8,y:homeY+2}],pi:0,mt:0,mi:3 },
+    wp:[{x:homeX+8,y:homeY},{x:homeX+11,y:homeY},{x:homeX+11,y:homeY+2},{x:homeX+8,y:homeY+2}],pi:0,mt:0,mi:3,
+    schedule:{day:[{x:homeX+8,y:homeY},{x:homeX+11,y:homeY},{x:homeX+11,y:homeY+2}],evening:[{x:homeX+22,y:homeY+14},{x:homeX+24,y:homeY+14}],night:[{x:homeX+6,y:homeY-2},{x:homeX+7,y:homeY-2}]} },
   { name:'Leverage Larry',x:(homeX+23)*TILE+8,y:(homeY+15)*TILE+8,col:'#4455FF',hair:'#222',role:'friend',
     dlg:[
       '"100x long, funded. Can\'t go tits up."',
@@ -1145,7 +1152,8 @@ const npcs = [
       '"I\'m not gambling, it\'s called risk management."',
       '"When I make it, I\'m buying this whole valley. Mark my words."',
     ],
-    wp:[{x:homeX+21,y:homeY+15},{x:homeX+24,y:homeY+15},{x:homeX+24,y:homeY+17},{x:homeX+21,y:homeY+17}],pi:0,mt:0,mi:2 },
+    wp:[{x:homeX+21,y:homeY+15},{x:homeX+24,y:homeY+15},{x:homeX+24,y:homeY+17},{x:homeX+21,y:homeY+17}],pi:0,mt:0,mi:2,
+    schedule:{day:[{x:homeX+18,y:homeY+8},{x:homeX+25,y:homeY+12},{x:homeX+20,y:homeY+15}],evening:[{x:homeX+22,y:homeY+14},{x:homeX+21,y:homeY+15}],night:[{x:homeX+22,y:homeY+14},{x:homeX+24,y:homeY+16}]} },
   { name:'Mayor Keynesian',x:(homeX+10)*TILE+8,y:(homeY-3)*TILE+8,col:'#888',hair:'#AAA',role:'friend',
     dlg:[
       '"We need more stimulus for the village economy!"',
@@ -1159,7 +1167,8 @@ const npcs = [
       '"The village debt is an investment in our future!"',
       '"We\'re not bankrupt, we\'re strategically leveraged."',
     ],
-    wp:[{x:homeX+10,y:homeY-3},{x:homeX+13,y:homeY-3},{x:homeX+13,y:homeY-1},{x:homeX+10,y:homeY-1}],pi:0,mt:0,mi:4 },
+    wp:[{x:homeX+10,y:homeY-3},{x:homeX+13,y:homeY-3},{x:homeX+13,y:homeY-1},{x:homeX+10,y:homeY-1}],pi:0,mt:0,mi:4,
+    schedule:{day:[{x:homeX+14,y:homeY-8},{x:homeX+17,y:homeY-8},{x:homeX+17,y:homeY-6}],evening:[{x:homeX+22,y:homeY+14},{x:homeX+23,y:homeY+15}],night:[{x:homeX+14,y:homeY-9},{x:homeX+15,y:homeY-9}]} },
   { name:'Ruby',x:(homeX+8)*TILE+8,y:(homeY+19)*TILE+8,col:'#CC4444',hair:'#FF6644',role:'shop',
     dlg:[
       '"Press B to browse! Everything priced in sats — no fiat here."',
@@ -1233,7 +1242,7 @@ const npcs = [
 // ============================================================
 // SHOP
 // ============================================================
-const SHOP_LIST = ['wrench','pickaxe','axe','hoe','shovel','fishing_rod','cpu_miner','gpu_rig','asic_s21','solar_panel','battery','cooling_fan','bread','coffee','potato_seed','tomato_seed','corn_seed','pumpkin_seed','immersion_tank','mesh_antenna','bitcoin_sign','chest','goat','cow','bee_hive','chicken','feed'];
+const SHOP_LIST = ['wrench','pickaxe','axe','hoe','shovel','fishing_rod','cpu_miner','gpu_rig','asic_s21','solar_panel','battery','cooling_fan','bread','coffee','potato_seed','tomato_seed','corn_seed','pumpkin_seed','immersion_tank','mesh_antenna','bitcoin_sign','chest','goat','cow','bee_hive','chicken','feed','bitcoin_academy','freedom_monument','satellite_node','volcano_drill','rocket_to_moon'];
 const SEED_SHOP_LIST = ['potato_seed','tomato_seed','corn_seed','pumpkin_seed','feed','bread'];
 
 // Map item IDs to sprite cache names
@@ -2372,12 +2381,32 @@ function update(dt) {
   }
   
   // NPCs
-  for(const n of npcs){n.mt+=dt;if(n.mt>=n.mi){n.mt=0;n.pi=(n.pi+1)%n.wp.length;}
-    const t=n.wp[n.pi],tx=t.x*TILE+8,ty=t.y*TILE+8,s=30*dt;
-    const nMoving=Math.abs(n.x-tx)>1||Math.abs(n.y-ty)>1;
-    if(Math.abs(n.x-tx)>1)n.x+=Math.sign(tx-n.x)*s;if(Math.abs(n.y-ty)>1)n.y+=Math.sign(ty-n.y)*s;
-    n.moving=nMoving;
-    if(nMoving){n.wt=(n.wt||0)+dt;if(n.wt>0.15){n.wt=0;n.wf=((n.wf||0)+1)%4;}}else n.wt=0;}
+  // NPC schedules — swap waypoints based on time of day
+  const npcHour = getHour();
+  for(const n of npcs){
+    // Schedule system: NPCs have optional schedule overrides
+    if(n.schedule){
+      let activeWP = n.wp; // default
+      if(npcHour>=21||npcHour<6) activeWP = n.schedule.night || n.wp;
+      else if(npcHour>=18) activeWP = n.schedule.evening || n.wp;
+      else activeWP = n.schedule.day || n.wp;
+      if(n._activeWP !== activeWP){n._activeWP=activeWP;n.pi=0;} // reset waypoint on schedule change
+      n.mt+=dt;if(n.mt>=n.mi){n.mt=0;n.pi=(n.pi+1)%activeWP.length;}
+      const t=activeWP[n.pi],tx=t.x*TILE+8,ty=t.y*TILE+8,s=30*dt;
+      const nMoving=Math.abs(n.x-tx)>1||Math.abs(n.y-ty)>1;
+      if(Math.abs(n.x-tx)>1)n.x+=Math.sign(tx-n.x)*s;if(Math.abs(n.y-ty)>1)n.y+=Math.sign(ty-n.y)*s;
+      n.moving=nMoving;
+      if(nMoving){n.wt=(n.wt||0)+dt;if(n.wt>0.15){n.wt=0;n.wf=((n.wf||0)+1)%4;}}else n.wt=0;
+    } else {
+      // Legacy: use fixed wp array
+      n.mt+=dt;if(n.mt>=n.mi){n.mt=0;n.pi=(n.pi+1)%n.wp.length;}
+      const t=n.wp[n.pi],tx=t.x*TILE+8,ty=t.y*TILE+8,s=30*dt;
+      const nMoving=Math.abs(n.x-tx)>1||Math.abs(n.y-ty)>1;
+      if(Math.abs(n.x-tx)>1)n.x+=Math.sign(tx-n.x)*s;if(Math.abs(n.y-ty)>1)n.y+=Math.sign(ty-n.y)*s;
+      n.moving=nMoving;
+      if(nMoving){n.wt=(n.wt||0)+dt;if(n.wt>0.15){n.wt=0;n.wf=((n.wf||0)+1)%4;}}else n.wt=0;
+    }
+  }
   
   // Rigs
   let th=0;for(const r of rigs){const e=r.update(dt);if(e>0){player.wallet+=e;player.totalEarned+=e;
