@@ -233,7 +233,7 @@ canvas.addEventListener('click', e => {
     if (e.clientY>=sy+40&&e.clientY<=sy+66) { shopMode=e.clientX<sx+sw/2?'buy':'sell'; shopCur=0; shopScroll=0; return; }
     const ly=sy+112, rowH=32;
     if (e.clientY>=ly) {
-      const activeList=shopNpcRole==='seeds'?SEED_SHOP_LIST:SHOP_LIST;
+      const activeList=shopNpcRole==='seeds'?SEED_SHOP_LIST:shopNpcRole==='tavern'?TAVERN_SHOP_LIST:SHOP_LIST;
       const row=Math.floor((e.clientY-ly)/rowH)+shopScroll;
       const listLen=shopMode==='buy'?activeList.length:inv.filter(s=>s&&ITEMS[s.id].sell>0).length;
       if (row>=0&&row<listLen) {
@@ -487,6 +487,10 @@ const ITEMS = {
   milk:{name:'Fresh Milk',desc:'Straight from the goat. Rich and creamy.',icon:'🥛',type:'food',buy:0,sell:200,stack:true},
   egg:{name:'Farm Eggs',desc:'Free-range eggs. Two per chicken per day.',icon:'🥚',type:'food',buy:0,sell:80,stack:true},
   honey:{name:'Raw Honey',desc:'Local wildflower honey. Nature\'s gold.',icon:'🍯',type:'food',buy:0,sell:350,stack:true},
+  beer:{name:'Bitcoin Beer',desc:'Hodl Tavern house brew. Restores 20 energy. Don\'t overdo it!',icon:'🍺',type:'food',buy:80,sell:30,stack:true},
+  stew:{name:'Hearty Stew',desc:'Warm beef stew. Restores 50 energy.',icon:'🍲',type:'food',buy:200,sell:80,stack:true},
+  pie:{name:'Shepherd\'s Pie',desc:'Classic comfort food. Restores 40 energy + speed boost.',icon:'🥧',type:'food',buy:150,sell:60,stack:true},
+  wine:{name:'Block Wine',desc:'Aged wine from the valley. Restores 30 energy.',icon:'🍷',type:'food',buy:300,sell:120,stack:true},
   feed:{name:'Animal Feed',desc:'Keeps your animals happy and productive.',icon:'🌾',type:'supply',buy:30,sell:10,stack:true},
   wood:{name:'Wood',desc:'Chopped from trees. Used in crafting.',icon:'🪵',type:'mat',buy:0,sell:15,stack:true},
   fiber:{name:'Fiber',desc:'Plant fiber from grass and bushes.',icon:'🎋',type:'mat',buy:0,sell:5,stack:true},
@@ -1244,6 +1248,7 @@ const npcs = [
 // ============================================================
 const SHOP_LIST = ['wrench','pickaxe','axe','hoe','shovel','fishing_rod','cpu_miner','gpu_rig','asic_s21','solar_panel','battery','cooling_fan','bread','coffee','potato_seed','tomato_seed','corn_seed','pumpkin_seed','immersion_tank','mesh_antenna','bitcoin_sign','chest','goat','cow','bee_hive','chicken','feed','bitcoin_academy','freedom_monument','satellite_node','volcano_drill','rocket_to_moon'];
 const SEED_SHOP_LIST = ['potato_seed','tomato_seed','corn_seed','pumpkin_seed','feed','bread'];
+const TAVERN_SHOP_LIST = ['beer','stew','pie','wine','bread','coffee'];
 
 // Map item IDs to sprite cache names
 const ITEM_SPRITES = {
@@ -1953,7 +1958,7 @@ function update(dt) {
     // Also open shop when inside the shop/tavern building (NPC is conceptually there)
     if(!nr&&interior){
       if(interior.type==='shop')nr={role:'shop',name:'Ruby'};
-      else if(interior.type==='tavern')nr={role:'shop',name:'Barkeep'};
+      else if(interior.type==='tavern')nr={role:'tavern',name:'Barkeep'};
     }
     if(nr&&!shopOpen){
       shopOpen=true;shopCur=0;
@@ -1983,7 +1988,7 @@ function update(dt) {
   
   // ---- SHOP NAV ----
   if(shopOpen){
-    const activeList=shopNpcRole==='seeds'?SEED_SHOP_LIST:SHOP_LIST;
+    const activeList=shopNpcRole==='seeds'?SEED_SHOP_LIST:shopNpcRole==='tavern'?TAVERN_SHOP_LIST:SHOP_LIST;
     if(jp['arrowup']||jp['w'])shopCur=Math.max(0,shopCur-1);
     if(jp['arrowdown']||jp['s'])shopCur=Math.min((shopMode==='buy'?activeList.length:inv.filter(s=>s).length)-1,shopCur+1);
     if(jp['enter']||jp['e']){
@@ -2249,6 +2254,16 @@ function update(dt) {
       else if(sel.id==='milk'){removeItem('milk');player.energy=Math.min(player.maxEnergy,player.energy+25);sfx.coin();notify('🥛 Fresh milk! +25 energy',1.5);}
       else if(sel.id==='egg'){removeItem('egg');player.energy=Math.min(player.maxEnergy,player.energy+15);sfx.coin();notify('🥚 Farm fresh! +15 energy',1.5);}
       else if(sel.id==='honey'){removeItem('honey');player.energy=Math.min(player.maxEnergy,player.energy+35);player.boost=20;sfx.coin();notify('🍯 Sweet honey! +35 energy, speed boost!',2);}
+      else if(sel.id==='beer'){
+        removeItem('beer');player.energy=Math.min(player.maxEnergy,player.energy+20);
+        player.beers=(player.beers||0)+1;sfx.coin();
+        if(player.beers>=4){notify('🍺🤢 Too many beers! You feel sick...',3,true);player.energy=Math.max(5,player.energy-30);player.boost=-15;player.beers=0;}
+        else if(player.beers>=2){notify('🍺😵 Feeling tipsy... '+player.beers+' beers deep!',2);player.boost=-5;}
+        else{notify('🍺 Cheers! +20 energy',1.5);}
+      }
+      else if(sel.id==='stew'){removeItem('stew');player.energy=Math.min(player.maxEnergy,player.energy+50);sfx.coin();notify('🍲 Hearty stew! +50 energy',2);}
+      else if(sel.id==='pie'){removeItem('pie');player.energy=Math.min(player.maxEnergy,player.energy+40);player.boost=25;sfx.coin();notify('🥧 Delicious pie! +40 energy, speed boost!',2);}
+      else if(sel.id==='wine'){removeItem('wine');player.energy=Math.min(player.maxEnergy,player.energy+30);sfx.coin();notify('🍷 Sophisticated. +30 energy',2);}
       else if(sel.id==='cheese'){removeItem('cheese');player.energy=Math.min(player.maxEnergy,player.energy+40);sfx.coin();notify('🧀 Aged cheese! +40 energy',1.5);}
       else if(sel.id==='pickaxe'){
         if(!useEnergy(8))return;
@@ -4674,8 +4689,8 @@ function drawCraftMenu(){
 function drawShop(){
   const w=560,h=460,x=(canvas.width-w)/2,y=(canvas.height-h)/2;panel(x,y,w,h);
   ctx.fillStyle=C.hud;ctx.font=`bold 18px ${FONT}`;ctx.textAlign='center';
-  ctx.fillText(shopNpcRole==='market'?"🌾 Farmer Pete's Market":shopNpcRole==='seeds'?"🌱 Seed Sally's Garden Shop":"⛏️ Ruby's Hardware Shop",x+w/2,y+28);
-  const activeList=shopNpcRole==='seeds'?SEED_SHOP_LIST:SHOP_LIST;
+  ctx.fillText(shopNpcRole==='market'?"🌾 Farmer Pete's Market":shopNpcRole==='seeds'?"🌱 Seed Sally's Garden Shop":shopNpcRole==='tavern'?"🍺 Hodl Tavern":"\u26cf\ufe0f Ruby's Hardware Shop",x+w/2,y+28);
+  const activeList=shopNpcRole==='seeds'?SEED_SHOP_LIST:shopNpcRole==='tavern'?TAVERN_SHOP_LIST:SHOP_LIST;
   
   // Tabs
   const tw=w/2-20;
