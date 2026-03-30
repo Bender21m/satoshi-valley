@@ -105,9 +105,12 @@ canvas.addEventListener('mousemove', e => {
   canvas.style.cursor = 'crosshair';
 });
 
-// Right-click to place selected item at mouse position
-canvas.addEventListener('contextmenu', e => {
-  e.preventDefault();
+// Prevent right-click menu on canvas
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// Shift+Click to place selected item at mouse position
+canvas.addEventListener('click', e => {
+  if(!e.shiftKey)return; // Only handle shift+click here; normal clicks handled below
   if(gameState!=='playing'||interior||shopOpen||invOpen||craftOpen||chestOpen||dlg||pauseOpen)return;
   const sel=getSelected();if(!sel)return;
   const it=ITEMS[sel.id];if(!it)return;
@@ -146,6 +149,7 @@ canvas.addEventListener('contextmenu', e => {
 });
 
 canvas.addEventListener('click', e => {
+  if(e.shiftKey)return; // Shift+click handled by placement handler above
   if (gameState !== 'playing') {
     // Title menu click handling
     if (gameState === 'intro' && titleMenuOpen) {
@@ -549,7 +553,7 @@ const TUTORIAL_STEPS = [
   { msg: '⏳ Crops grow over several days. Click a golden glowing crop or press H nearby to harvest.', trigger: 'press' },
   { msg: '🪓 The AXE chops trees for wood. The HOE tills grass into farmable dirt. The SHOVEL picks up placed items.', trigger: 'press' },
   { msg: '🔨 Press T to open the Crafting Bench! Combine materials to make fence posts, cheese, circuits, and more.', trigger: 'press' },
-  { msg: '🪵 Chop trees with the axe to get WOOD. Craft FENCE POSTS (2 wood each) at the bench. Place fences with R to build animal pens!', trigger: 'press' },
+  { msg: '🪵 Chop trees with the axe to get WOOD. Craft FENCE POSTS (2 wood each) at the bench. Place fences with R or Shift+Click!', trigger: 'press' },
   { msg: '🐄 Buy animals from Ruby\'s shop. Place them with R inside a fenced area. Feed them daily with FEED from the shop.', trigger: 'press' },
   { msg: '🥛 Happy, fed animals produce items over time — eggs, milk, beef, honey. Click them or press E to collect!', trigger: 'press' },
   { msg: '😴 Actions cost ENERGY. Eat food (bread, coffee, meat) to restore it, or sleep at home after 6 PM. Press E inside your house.', trigger: 'press' },
