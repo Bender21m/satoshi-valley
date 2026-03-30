@@ -105,6 +105,46 @@ canvas.addEventListener('mousemove', e => {
   canvas.style.cursor = 'crosshair';
 });
 
+// Right-click to place selected item at mouse position
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if(gameState!=='playing'||interior||shopOpen||invOpen||craftOpen||chestOpen||dlg||pauseOpen)return;
+  const sel=getSelected();if(!sel)return;
+  const it=ITEMS[sel.id];if(!it)return;
+  const wx=(e.clientX+cam.x)/SCALE,wy=(e.clientY+cam.y)/SCALE;
+  const ptx=Math.round(wx/TILE)*TILE+8,pty=Math.round(wy/TILE)*TILE+8;
+  const tx=Math.floor(ptx/TILE),ty=Math.floor(pty/TILE);
+  if(sel.id==='fence_post'){
+    if(!isSolid(tx,ty)&&!fences.some(f=>f.x===tx&&f.y===ty)){
+      removeItem('fence_post');fences.push({x:tx,y:ty});sfx.place();notify('🪵 Fence placed!',1.5);
+    }else{sfx.error();notify("Can't place fence here!",1.5);}
+  }else if(it.type==='rig'){
+    if(!isSolid(tx,ty)&&!rigs.some(r=>Math.abs(r.x-ptx)<TILE&&Math.abs(r.y-pty)<TILE)){
+      removeItem(sel.id);rigs.push(new Rig(ptx,pty,it.tier));sfx.place();notify(`⛏️ ${it.name} placed!`,2);completeObjective('place_rig');
+    }else{sfx.error();notify("Can't place here!",1.5);}
+  }else if(sel.id==='solar_panel'||sel.id==='battery'||sel.id==='cooling_fan'||sel.id==='chest'||sel.id==='flower_pot'||sel.id==='torch_item'||sel.id==='bitcoin_sign'){
+    if(!isSolid(tx,ty)&&!placed.some(i=>Math.abs(i.x-ptx)<TILE&&Math.abs(i.y-pty)<TILE)){
+      removeItem(sel.id);placed.push({x:ptx,y:pty,type:sel.id});
+      if(sel.id==='solar_panel')pwr.panels.push({x:ptx,y:pty});
+      if(sel.id==='battery')pwr.batts.push({x:ptx,y:pty});
+      sfx.place();notify(`${it.icon} Placed!`,1.5);
+      if(sel.id==='solar_panel')completeObjective('place_solar');
+    }else{sfx.error();notify("Can't place here!",1.5);}
+  }else if(it.type==='animal'){
+    const animalType=sel.id==='bee_hive'?'bee':sel.id;
+    if(!isSolid(tx,ty)){
+      removeItem(sel.id);animals.push(new Animal(ptx,pty,animalType));sfx.place();
+      notify(ANIMAL_TYPES[animalType].icon+' '+ANIMAL_TYPES[animalType].name+' placed!',2);addXP('farming',10);
+    }else{sfx.error();notify("Can't place here!",1.5);}
+  }else if(sel.id==='potato_seed'||sel.id==='tomato_seed'||sel.id==='corn_seed'||sel.id==='pumpkin_seed'){
+    if(map[ty]&&map[ty][tx]===T.DIRT&&!crops.some(c=>c.x===tx&&c.y===ty)){
+      const cropType=sel.id.replace('_seed','');
+      removeItem(sel.id);plantCrop(tx,ty,cropType);sfx.place();
+      notify(`🌱 Planted ${CROP_TYPES[cropType].name}!`,2);addXP('farming',5);completeObjective('plant_crop');
+    }else{notify("Plant on empty dirt tiles!",1.5);sfx.error();}
+  }
+});
+
 canvas.addEventListener('click', e => {
   if (gameState !== 'playing') {
     // Title menu click handling
