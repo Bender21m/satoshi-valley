@@ -334,6 +334,13 @@ const ITEMS = {
   egg:{name:'Farm Eggs',desc:'Free-range eggs. Two per chicken per day.',icon:'🥚',type:'food',buy:0,sell:80,stack:true},
   honey:{name:'Raw Honey',desc:'Local wildflower honey. Nature\'s gold.',icon:'🍯',type:'food',buy:0,sell:350,stack:true},
   feed:{name:'Animal Feed',desc:'Keeps your animals happy and productive.',icon:'🌾',type:'supply',buy:30,sell:10,stack:true},
+  wood:{name:'Wood',desc:'Lumber from trees. Used for building.',icon:'🪵',type:'mat',buy:0,sell:30,stack:true},
+  fiber:{name:'Plant Fiber',desc:'Cleared from grass and bushes.',icon:'🌿',type:'mat',buy:0,sell:15,stack:true},
+  potato_crop:{name:'Potato',desc:'Fresh potato from the garden.',icon:'🥔',type:'crop',buy:0,sell:120,stack:true},
+  tomato_crop:{name:'Tomato',desc:'Ripe red tomato.',icon:'🍅',type:'crop',buy:0,sell:200,stack:true},
+  corn_crop:{name:'Corn',desc:'Golden sweet corn.',icon:'🌽',type:'crop',buy:0,sell:350,stack:true},
+  pumpkin_seed:{name:'Pumpkin Seeds',desc:'Plant on dirt. Grows in 12 days.',icon:'🎃',type:'seed',buy:200,sell:70,stack:true},
+  pumpkin_crop:{name:'Pumpkin',desc:'A magnificent orange pumpkin.',icon:'🎃',type:'crop',buy:0,sell:800,stack:true},
 };
 
 // ============================================================
@@ -1012,8 +1019,8 @@ const npcs = [
 // ============================================================
 // SHOP
 // ============================================================
-const SHOP_LIST = ['wrench','pickaxe','axe','hoe','shovel','cpu_miner','gpu_rig','asic_s21','solar_panel','battery','cooling_fan','bread','coffee','potato_seed','tomato_seed','corn_seed','immersion_tank','mesh_antenna','bitcoin_sign','chest','goat','cow','bee_hive','chicken','feed'];
-const SEED_SHOP_LIST = ['potato_seed','tomato_seed','corn_seed','feed','bread'];
+const SHOP_LIST = ['wrench','pickaxe','axe','hoe','shovel','cpu_miner','gpu_rig','asic_s21','solar_panel','battery','cooling_fan','bread','coffee','potato_seed','tomato_seed','corn_seed','pumpkin_seed','immersion_tank','mesh_antenna','bitcoin_sign','chest','goat','cow','bee_hive','chicken','feed'];
+const SEED_SHOP_LIST = ['potato_seed','tomato_seed','corn_seed','pumpkin_seed','feed','bread'];
 
 // Map item IDs to sprite cache names
 const ITEM_SPRITES = {
@@ -1033,7 +1040,7 @@ let invOpen = false;
 const notifs = [];
 function notify(text,dur=2.5,big=false){notifs.push({text,t:dur,big});}
 const particles = [];
-function satPart(x,y,n){particles.push({x:x*SCALE,y:y*SCALE,text:'+'+fmt(n)+' ₿',life:2,vy:-25,size:n>100?16:13});}
+function satPart(x,y,n){if(particles.length<100)particles.push({x:x*SCALE,y:y*SCALE,text:'+'+fmt(n)+' ₿',life:2,vy:-25,size:n>100?16:13});}
 
 // ============================================================
 // ECONOMY & TIME
@@ -1820,7 +1827,7 @@ function update(dt) {
         }
       }
       // CROP PLANTING on dirt tiles
-      else if(sel.id==='potato_seed'||sel.id==='tomato_seed'||sel.id==='corn_seed'){
+      else if(sel.id==='potato_seed'||sel.id==='tomato_seed'||sel.id==='corn_seed'||sel.id==='pumpkin_seed'){
         const tx=Math.floor((player.x+player.facing.x*16)/TILE),ty=Math.floor((player.y+player.facing.y*16)/TILE);
         if(map[ty]&&map[ty][tx]===T.DIRT&&!crops.some(c=>c.x===tx&&c.y===ty)){
           const cropType = sel.id.replace('_seed','');
@@ -1970,7 +1977,7 @@ function update(dt) {
   // Weather particles
   if (weather.current === 'rain' || weather.current === 'storm') {
     const rate = weather.current === 'storm' ? 8 : 4;
-    for (let i = 0; i < rate; i++) {
+    for (let i = 0; i < rate && weather.particles.length < 500; i++) {
       weather.particles.push({
         x: Math.random() * canvas.width,
         y: -10,
