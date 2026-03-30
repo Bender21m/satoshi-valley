@@ -1809,10 +1809,16 @@ function update(dt) {
   }
   if (showDaySummary && (jp['enter'] || jp['e'] || jp[' '])) { showDaySummary = false; }
   if(jp['b']){
-    const nr=npcs.find(n=>(n.role==='shop'||n.role==='market'||n.role==='seeds')&&Math.hypot(n.x-player.x,n.y-player.y)<60);
+    // Check NPCs nearby (overworld)
+    let nr=npcs.find(n=>(n.role==='shop'||n.role==='market'||n.role==='seeds')&&Math.hypot(n.x-player.x,n.y-player.y)<60);
+    // Also open shop when inside the shop/tavern building (NPC is conceptually there)
+    if(!nr&&interior){
+      if(interior.type==='shop')nr={role:'shop',name:'Ruby'};
+      else if(interior.type==='tavern')nr={role:'shop',name:'Barkeep'};
+    }
     if(nr&&!shopOpen){
       shopOpen=true;shopCur=0;
-      shopMode=nr.role==='market'?'sell':'buy'; // Market opens in sell mode
+      shopMode=nr.role==='market'?'sell':'buy';
       shopNpcRole=nr.role;
       sfx.menuOpen();dlg=null;
     }else if(shopOpen){shopOpen=false;sfx.menuClose();}
@@ -1950,17 +1956,15 @@ function update(dt) {
 
   // ---- BUILDING EXIT (interior) ----
   if (interior && !transition) {
-    // Exit when player walks near the bottom of the interior (door area)
-    // OR when they press E near the door area
-    const nearDoor = player.y >= (interior.h - 2) * TILE;
-    const atDoor = player.y >= (interior.h - 1) * TILE - 4;
+    // Exit ONLY when player walks past the very bottom edge (intentional exit)
+    const atDoor = player.y >= (interior.h - 1) * TILE + TILE/2;
     
-    if (atDoor || (nearDoor && jp['e'])) {
+    if (atDoor) {
       const rx = interior.returnX, ry = interior.returnY;
       startTransition('fadeOut', 0.3, () => {
         interior = null;
         interiorNPCs = [];
-        doorCooldown = 1.0;
+        doorCooldown = 2.0;
         player.x = rx; player.y = ry;
         cam.x = player.x * SCALE - canvas.width / 2;
         cam.y = player.y * SCALE - canvas.height / 2;
@@ -1991,7 +1995,21 @@ function update(dt) {
     }
     else{
       const ix=player.x+player.facing.x*20,iy=player.y+player.facing.y*20;
-      let cr=null,cd=28;for(const r of rigs){const d=Math.hypot(r.x-ix,r.y-iy);if(d<cd){cr=r;cd=d;}}
+      // PRIORITY: Check interior NPCs first (before rigs/animals/anything else)
+      if(interior && interiorNPCs.length > 0){
+        let intNpcHandled=false;
+        for(const n of interiorNPCs){
+          if(Math.hypot(n.x-ix,n.y-iy)<48){
+            const _ndInt=n.dlg[Math.floor(Math.random()*n.dlg.length)];
+            dlg={name:n.name,text:_ndInt,role:n.role||'friend',fullText:_ndInt,displayedChars:0,done:false};dlgCharTimer=0;sfx.interact();
+            addXP('social',2);intNpcHandled=true;break;
+          }
+        }
+        if(intNpcHandled){for(const k in jp)jp[k]=false;return;}
+      }
+      // Only find rigs in current view (interior match)
+      const currentInt=interior?interior.type:null;
+      let cr=null,cd=28;for(const r of rigs){if((currentInt&&r.interior===currentInt)||(!currentInt&&!r.interior)){const d=Math.hypot(r.x-ix,r.y-iy);if(d<cd){cr=r;cd=d;}}}
       if(cr){const sel=getSelected();
         if(sel&&sel.id==='wrench'&&cr.dur<100){cr.dur=Math.min(100,cr.dur+25);removeItem('wrench');sfx.repair();notify(`🔧 Repaired! ${cr.dur.toFixed(0)}%`,2);completeObjective('repair_rig');}
         else{cr.powered=!cr.powered;sfx.interact();notify(`Rig ${cr.powered?'ON ⚡':'OFF 💤'}`,1.5);}
