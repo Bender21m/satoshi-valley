@@ -142,3 +142,85 @@ Port to Godot 4, native builds, controller support, Steam integration.
 ---
 
 *Built with love by the Satoshi Valley team — Last updated: 2026-03-30*
+
+---
+
+## 🎬 Opening Cinematic Vision
+
+The intro sequence sets the emotional stakes. Currently text-on-black — the vision is illustrated pixel art scenes:
+
+**Scene 1: "Chancellor on brink..."** — Newspaper headline on a desk, rain on windows, grey Fiatropolis skyline
+**Scene 2: "One person saw this..."** — Silhouette at a computer screen, green terminal text, Genesis Block mining
+**Scene 3: "21 million coins"** — Gold ₿ coins falling, counter ticking up, white paper floating
+**Scene 4: "Fiatropolis printed and printed"** — Dystopian city: neon CBDC ads, bread line, price boards with ridiculous numbers
+**Scene 5: "A letter arrived"** — Envelope on doormat, wax seal with ₿, warm light from inside
+**Scene 6: Uncle Toshi's letter** — Handwritten letter, old mining rig in background, mountain valley through window
+**Scene 7: "The seed is split"** — 24 puzzle pieces scattered across a map of the valley
+**Scene 8: "He left you everything"** — Pan across the valley at dawn — your homestead, the shed, mountains, river
+**Scene 9: Title card** — "SATOSHI VALLEY" in pixel art with animated ₿ particles, sunrise behind mountains
+
+Each scene = a 16:9 pixel art illustration with parallax layers and subtle animation. This is the first impression — it needs to be **breathtaking**.
+
+---
+
+## 🏆 Endgame: Hyperbitcoinization
+
+The game doesn't end when you find all 24 seed words. That's Act 3. The true endgame:
+
+### Act 4: The Tipping Point
+- Fiatropolis citizens start arriving in the valley (refugees from inflation)
+- You help them set up nodes, wallets, mining
+- Village economy fully transitions to Bitcoin standard
+- Mayor Keynesian has a crisis of faith (redemption arc)
+- Lightning Network connects the valley to the world
+
+### Act 5: Hyperbitcoinization
+- The Fiat Bank collapses (dramatic event sequence)
+- Fiatropolis reaches out for help
+- Player chooses: help rebuild on Bitcoin, or isolate the citadel
+- Global adoption event — the whole world map changes
+- Your citadel becomes a beacon
+
+### New Game+
+- Restart with upgraded knowledge, tools carry over
+- Harder difficulty: faster market cycles, more FUD events
+- New NPC interactions (they remember you)
+- Hidden content only accessible in NG+
+- Secret 25th seed word
+- Compete for fastest hyperbitcoinization speedrun
+
+### Prestige System
+- Each NG+ cycle unlocks cosmetic upgrades
+- Bitcoin-themed character skins (laser eyes, space suit, cypherpunk hoodie)
+- Citadel visual themes (cyberpunk, solarpunk, mountain fortress)
+- Custom rig skins
+- Achievement trophies displayed in citadel
+
+---
+
+## 📐 10-Year Vision (Extended Plan)
+
+### Years 1-5 (2026-2030): Core Game
+As documented above — prototype → Early Access → full release → console → expansions.
+
+### Years 6-7 (2031-2032): Multiplayer Era
+- Persistent online valleys (visit friends)
+- Cooperative citadel building
+- Inter-valley Lightning Network trading
+- Seasonal community events (real-world halving celebrations)
+- Competitive mining pool tournaments
+
+### Years 8-9 (2033-2034): The Platform
+- Full modding SDK
+- Community marketplace for mods/content
+- Educational mode (schools and onboarding)
+- VR exploration mode
+- Documentary companion content (real Bitcoin history)
+
+### Year 10 (2035): Legacy
+- Satoshi Valley becomes THE cultural artifact of the Bitcoin era
+- Open-source the engine
+- Community-maintained forever
+- The game that taught a generation about sound money
+
+---
