@@ -782,6 +782,39 @@ function initSprites() {
     cx.fillRect(8, 13, 1, 1);
   });
 
+  // Fence sprite
+  createSprite('item_fence', S, (cx, s) => {
+    // Left post
+    cx.fillStyle = '#5A3818';
+    cx.fillRect(1, 2, 3, 12);
+    // Right post
+    cx.fillRect(12, 2, 3, 12);
+    // Top rail
+    cx.fillStyle = '#8A6A40';
+    cx.fillRect(1, 3, 14, 2);
+    // Bottom rail
+    cx.fillRect(1, 10, 14, 2);
+  });
+
+  // Fence gate sprite
+  createSprite('item_fence_gate', S, (cx, s) => {
+    // Left post
+    cx.fillStyle = '#5A4820';
+    cx.fillRect(1, 2, 3, 12);
+    // Right post
+    cx.fillRect(12, 2, 3, 12);
+    // Top rail halves
+    cx.fillStyle = '#9A7A50';
+    cx.fillRect(1, 3, 5, 2);
+    cx.fillRect(10, 3, 5, 2);
+    // Bottom rail halves
+    cx.fillRect(1, 10, 5, 2);
+    cx.fillRect(10, 10, 5, 2);
+    // Latch
+    cx.fillStyle = '#FFD700';
+    cx.fillRect(7, 6, 2, 2);
+  });
+
   console.log(`✅ ${Object.keys(SpriteCache).length} sprites generated`);
 }
 

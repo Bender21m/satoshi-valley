@@ -325,6 +325,8 @@ const ITEMS = {
   mesh_antenna:{name:'Mesh Antenna',desc:'Off-grid comms — boosts social XP gain',icon:'📡',type:'upgrade',buy:3000,sell:1200,stack:true},
   bitcoin_sign:{name:'Bitcoin Sign',desc:'Decorative ₿ sign for your citadel',icon:'🪧',type:'deco',buy:500,sell:200,stack:true},
   chest:{name:'Storage Chest',desc:'Place near home for 20 extra item slots',icon:'📦',type:'placeable',buy:500,sell:200,stack:true},
+  fence:{name:'Wooden Fence',desc:'Keeps animals contained. Place to build enclosures.',icon:'🪵',type:'placeable',buy:50,sell:20,stack:true},
+  fence_gate:{name:'Fence Gate',desc:'Walk-through gate. Blocks animals but not you.',icon:'🚪',type:'placeable',buy:100,sell:40,stack:true},
   goat:{name:'Goat',desc:'Produces milk daily. Every citadel needs goats.',icon:'🐐',type:'animal',buy:2000,sell:800,stack:false},
   cow:{name:'Cow',desc:'Raise for beef — premium sats at the meat market',icon:'🐄',type:'animal',buy:5000,sell:2000,stack:false},
   bee_hive:{name:'Bee Hive',desc:'Place near flowers — produces honey over time',icon:'🐝',type:'animal',buy:1500,sell:600,stack:false},
@@ -840,6 +842,14 @@ function isSolid(tx,ty){
   if(tx<0||ty<0||tx>=mw||ty>=mh)return true;
   return SOLID.has(m[ty][tx]);
 }
+function isBlockedForAnimal(px,py){
+  const tx=Math.floor(px/TILE),ty=Math.floor(py/TILE);
+  if(isSolid(tx,ty))return true;
+  for(const p of placed){
+    if((p.type==='fence'||p.type==='fence_gate')&&Math.abs(p.x-px)<TILE&&Math.abs(p.y-py)<TILE)return true;
+  }
+  return false;
+}
 
 // ============================================================
 // PLAYER
@@ -1019,7 +1029,7 @@ const npcs = [
 // ============================================================
 // SHOP
 // ============================================================
-const SHOP_LIST = ['wrench','pickaxe','axe','hoe','shovel','cpu_miner','gpu_rig','asic_s21','solar_panel','battery','cooling_fan','bread','coffee','potato_seed','tomato_seed','corn_seed','pumpkin_seed','immersion_tank','mesh_antenna','bitcoin_sign','chest','goat','cow','bee_hive','chicken','feed'];
+const SHOP_LIST = ['wrench','pickaxe','axe','hoe','shovel','cpu_miner','gpu_rig','asic_s21','solar_panel','battery','cooling_fan','bread','coffee','potato_seed','tomato_seed','corn_seed','pumpkin_seed','immersion_tank','mesh_antenna','bitcoin_sign','chest','fence','fence_gate','goat','cow','bee_hive','chicken','feed'];
 const SEED_SHOP_LIST = ['potato_seed','tomato_seed','corn_seed','pumpkin_seed','feed','bread'];
 
 // Map item IDs to sprite cache names
@@ -1805,6 +1815,14 @@ function update(dt) {
         if(!isSolid(ptx,pty)&&!placed.some(i=>Math.abs(i.x-px)<TILE&&Math.abs(i.y-py)<TILE)){
           removeItem('chest');placed.push({x:px,y:py,type:'chest'});sfx.place();notify('📦 Storage chest placed!',2);
         }else{sfx.error();notify("Can't place here!",1.5);}
+      }else if(sel.id==='fence'){
+        if(!isSolid(ptx,pty)&&!placed.some(i=>Math.abs(i.x-px)<TILE&&Math.abs(i.y-py)<TILE)){
+          removeItem('fence');placed.push({x:px,y:py,type:'fence'});sfx.place();notify('🪵 Fence placed!',2);
+        }else{sfx.error();notify("Can't place here!",1.5);}
+      }else if(sel.id==='fence_gate'){
+        if(!isSolid(ptx,pty)&&!placed.some(i=>Math.abs(i.x-px)<TILE&&Math.abs(i.y-py)<TILE)){
+          removeItem('fence_gate');placed.push({x:px,y:py,type:'fence_gate'});sfx.place();notify('🚪 Gate placed!',2);
+        }else{sfx.error();notify("Can't place here!",1.5);}
       }else if(it.type==='animal'){
         const animalType = sel.id === 'bee_hive' ? 'bee' : sel.id;
         if(!isSolid(ptx,pty)&&!rigs.some(r=>Math.abs(r.x-px)<TILE&&Math.abs(r.y-py)<TILE)
@@ -1878,7 +1896,7 @@ function update(dt) {
         for(let i=placed.length-1;i>=0;i--){
           if(Math.hypot(placed[i].x-ix,placed[i].y-iy)<24){
             const p=placed[i];
-            const itemMap={solar_panel:'solar_panel',battery:'battery',cooling_fan:'cooling_fan',chest:'chest'};
+            const itemMap={solar_panel:'solar_panel',battery:'battery',cooling_fan:'cooling_fan',chest:'chest',fence:'fence',fence_gate:'fence_gate'};
             if(itemMap[p.type]){addItem(itemMap[p.type]);notify(`⚒️ Picked up ${p.type.replace('_',' ')}`,2);}
             // Remove from power arrays too
             if(p.type==='solar_panel') pwr.panels=pwr.panels.filter(pp=>pp.x!==p.x||pp.y!==p.y);
@@ -1931,13 +1949,20 @@ function update(dt) {
   // Animal AI
   for(const a of animals){
     if(a.type==='bee') continue;
+    // Rescue animal if stuck in water/solid tile
+    const atx=Math.floor(a.x/TILE),aty=Math.floor(a.y/TILE);
+    if(isSolid(atx,aty)){a.x=a.homeX;a.y=a.homeY;a.moving=false;}
     a.moveTimer-=dt;
     if(a.moveTimer<=0){
       a.moveTimer=2+Math.random()*4;
       if(Math.random()<0.6){
         a.moving=true;
+        // Soft boundary: limit wander to 8 tiles from home
+        const wanderR=8*TILE;
         a.targetX=a.homeX+(Math.random()*6-3)*TILE;
         a.targetY=a.homeY+(Math.random()*6-3)*TILE;
+        a.targetX=Math.max(a.homeX-wanderR,Math.min(a.targetX,a.homeX+wanderR));
+        a.targetY=Math.max(a.homeY-wanderR,Math.min(a.targetY,a.homeY+wanderR));
         a.targetX=Math.max(TILE,Math.min(a.targetX,(MAP_W-2)*TILE));
         a.targetY=Math.max(TILE,Math.min(a.targetY,(MAP_H-2)*TILE));
       } else { a.moving=false; }
@@ -1949,8 +1974,7 @@ function update(dt) {
       else{
         const spd=20*dt;
         const nx=a.x+dx/dist*spd,ny=a.y+dy/dist*spd;
-        const ntx=Math.floor(nx/TILE),nty=Math.floor(ny/TILE);
-        if(!isSolid(ntx,nty)){a.x=nx;a.y=ny;}else{a.moving=false;}
+        if(!isBlockedForAnimal(nx,ny)){a.x=nx;a.y=ny;}else{a.moving=false;}
         if(dx>0)a.dir=1;else if(dx<0)a.dir=-1;
       }
     }
@@ -2856,6 +2880,30 @@ function drawPlaced(item){
     ctx.fillStyle='#8A6A30';ctx.fillRect(sx-ST/2+4,sy-ST/2+10,ST-8,6);
     ctx.fillStyle='#5A3A10';ctx.fillRect(sx-3,sy-ST/2+12,6,4);
     ctx.fillStyle='#AA8A40';ctx.fillRect(sx-2,sy-ST/2+13,4,2);
+  }
+  else if(item.type==='fence'){
+    // Left post
+    ctx.fillStyle='#5A3818';ctx.fillRect(sx-ST/2+2,sy-ST/2+4,5,ST-8);
+    // Right post
+    ctx.fillRect(sx+ST/2-7,sy-ST/2+4,5,ST-8);
+    // Top rail
+    ctx.fillStyle='#8A6A40';ctx.fillRect(sx-ST/2+2,sy-ST/2+6,ST-4,4);
+    // Bottom rail
+    ctx.fillRect(sx-ST/2+2,sy+ST/2-14,ST-4,4);
+  }
+  else if(item.type==='fence_gate'){
+    // Left post
+    ctx.fillStyle='#5A4820';ctx.fillRect(sx-ST/2+2,sy-ST/2+4,5,ST-8);
+    // Right post
+    ctx.fillRect(sx+ST/2-7,sy-ST/2+4,5,ST-8);
+    // Top rail halves (gap in middle)
+    ctx.fillStyle='#9A7A50';ctx.fillRect(sx-ST/2+2,sy-ST/2+6,ST/2-6,4);
+    ctx.fillRect(sx+4,sy-ST/2+6,ST/2-6,4);
+    // Bottom rail halves (gap in middle)
+    ctx.fillRect(sx-ST/2+2,sy+ST/2-14,ST/2-6,4);
+    ctx.fillRect(sx+4,sy+ST/2-14,ST/2-6,4);
+    // Gate latch dot
+    ctx.fillStyle='#FFD700';ctx.fillRect(sx-2,sy-2,4,4);
   }
 }
 
