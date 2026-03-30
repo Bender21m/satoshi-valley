@@ -1,121 +1,106 @@
 # 🔄 HANDOFF.md — Dev Shift Handoff Log
 
 > **Read this FIRST when starting your shift.** Update it LAST before ending your shift.
-> This is how we avoid stepping on each other's work.
 
 ---
 
 ## 🏗️ Current State
 
-**Last updated:** 2026-03-30 22:25 CET
-**Last dev:** Bender (shift 2 — full day session)
+**Last updated:** 2026-03-30 20:40 UTC
+**Last dev:** Flexo (shift 3)
 **Repo:** `Bender21m/satoshi-valley` | Fork: `satsdisco/satoshi-valley`
 **Live demo:** https://bender21m.github.io/satoshi-valley
-**game.js lines:** ~4,900 | **Save version:** v8 | **Sprints complete:** 13 | **Open issues:** 2
+**game.js lines:** ~5,300 | **Save version:** v8 | **Sprints complete:** 14 | **Open issues:** 2
 
 ### What's Working ✅
 - Full mining loop (3 rig tiers, power grid, durability, overheating)
 - Farming (potato, tomato, corn, pumpkin) — plant, grow, harvest, sell
-- Animal system (cow, goat, chicken, bee) — feed, produce, collect
-- Fencing system (craft fence posts from wood, place with R, animals respect fences)
-- Crafting bench (cheese, circuit boards, advanced rig parts, shed upgrade, citadel materials)
-- 5 building interiors (home, shop, tavern, shed, town hall) with Zelda-style transitions
-- 9 NPCs with Bitcoin culture dialogue + waypoint movement
+- Animal system (cow, goat, chicken, bee) with auto-feed from chest
+- Fencing system + crafting bench (8 recipes)
+- 5 building interiors (home, shop, tavern, shed, town hall)
+- 9 NPCs with Bitcoin culture dialogue + daily schedules (tavern in evening!)
+- **NPC quest system** — 15 quests across 6 NPCs with rewards
 - Shop system (Ruby's Hardware, Seed Sally, Farmer Pete's Market)
+- Tavern with beer/stew/pie/wine + drunk effect
 - Citadel upgrade system (5 tiers: Shack → Citadel)
 - Quest log with 15 objectives across 5 chapters
-- BIP39 seed word collectibles (24 words, 4 placed in world)
-- Procedural music engine (adapts to time + market phase)
-- Weather system (sunny, cloudy, rain, storm + ambient particles)
-- Minimap, day/night cycle, skill system, save/load (v8)
-- Title screen with New Game / Continue
-- Quest markers (! above NPCs)
-- Pause menu
-- Terrain-specific footstep sounds
-- Decorative items (torch, flower pot, bitcoin sign)
+- BIP39 seed word collectibles (24 words placed across the map)
+- **Fishing minigame** — 3 fish types including rare Bitcoin Fish
+- Procedural music engine + terrain footsteps
+- Weather system + seasonal visuals (autumn leaves, winter snow)
+- Enhanced minimap (shows rigs, crops, animals, seed fragments)
+- Late-game sat sinks (100K-1M sats: academy, monument, satellite, rocket)
+- Title screen, pause menu, crafting bench
+- Click-to-move, shift-click to place items
+- Save/load v8 with quest progress
+
+### Current Priority 🎯
+**VISUAL POLISH SPRINT — Valley first, expansion later**
+- DO NOT add new regions yet
+- Focus: paths, buildings, characters, grass, water, lighting
+- Make the valley feel lived-in and beautiful
+- See ROADMAP.md "Visual Polish Sprint" section for full checklist
 
 ### Known Bugs 🐛
-- **Art direction needs work** — Grafton wants Stardew Valley quality, we're getting closer but not there yet
-- **Building interiors don't change with citadel tier** (#34)
-- **Click indicator may show through building interiors**
-- **No sound effects** for building entry/exit
-- **game.js is 4700 lines** — needs modularization badly (Claude Code can't process it)
+- #34: Building interiors don't change with citadel tier
+- #56: Performance (not urgent, monitor only)
 
-### What's NOT Working / Next Up ❌
-- **NPC quest/request system** — no way for NPCs to ask for items or chain quests
-- **Circular economy** — crafting exists but no demand-driven economy (NPC orders, tavern menu)
-- **Tavern has no function** — barkeep talks but can't buy food/beer
-- **Drunk effect** — not implemented yet (too many beers should affect player)
-- **NPC daily schedules** — NPCs don't move between buildings on a routine
-- **No gift system** — can't give items to NPCs for hearts
+### What NOT to Do ❌
+- Don't add Fiatropolis or new regions yet
+- Don't add multiplayer features
+- Don't restructure save format (v8 is stable)
+- Don't rewrite the game engine
 
----
+## 📝 Shift Log
 
-## 📋 Shift Log
-
-### Shift 2 — Bender (2026-03-30, 11:30–14:00 CET)
+### Shift 3 — Flexo (2026-03-30, evening)
 **Did:**
-- Full code review of Fleck's 23 PRs + 13 additional commits
-- Identified critical bugs (missing items, crop products, particle bounds)
-- Fixed crop product items (potato_crop, tomato_crop, corn_crop, pumpkin_crop)
-- Added pumpkin_seed to shops and planting
-- Synced all 3 repos (local, Bender21m, satsdisco fork)
-- Created HANDOFF.md (this file)
+- Code review + bug audit (filed issues #48-#68)
+- Fixed 6 bugs: citadel trap, sleep energy, rain crops, alpha/shadow leaks, duplicate NPC check
+- Sprint 12: Crafting system (8 recipes), fencing, decorations
+- Sprint 13: Fishing minigame (3 fish types, timing minigame)
+- Sprint 14: NPC quest system (15 quests across 6 NPCs), late-game sat sinks (up to 1M sats)
+- Seasonal visuals (autumn leaves, winter snow, color shifts)
+- Enhanced minimap (shows all placed items)
+- NPC daily schedules (tavern gathering in evening)
+- All 24 seed fragments placed across the map
+- Updated ROADMAP with visual polish priority
 
-**Blocked:**
-- Can't push directly to Bender21m repo (satsdisco PAT lacks permission)
-- Can't create PRs via CLI (fine-grained token missing pull_requests:write)
-- Fix is on satsdisco/satoshi-valley fork, needs manual PR + merge
+**Next priority:** Visual polish — make the valley beautiful before expanding
 
-**Next up (Sprint 14 — NPC Quests & Circular Economy):**
-1. NPC request system — NPCs ask for items, give rewards
-2. Pizza Pete quest chain (wheat → dough, tomatoes → sauce, cheese → pizza)
-3. Crafting chains tied to NPC requests (unlock recipes by fulfilling orders)
-4. NPC daily schedules (walk between locations)
-5. Gift system (give items to NPCs for hearts)
-6. Continue visual polish (building shadows, night window glow, art direction)
-7. Code modularization (game.js is ~4900 lines — painful for devs)
-
-**Recently completed this session:**
-- Tavern menu with beer/stew/pie/wine + drunk effect ✅
-- Right-click → Shift+Click item placement ✅  
-- Proper bed with sleep prompt ✅
-- Shops close at night (except tavern) ✅
-- Auto-feed animals from chest ✅
-- Easier item pickup (bigger range) ✅
-- Faster night energy drain ✅
+### Shift 2 — Bender (2026-03-30, daytime)
+**Did:**
+- NPC pixel art overhaul (9 unique characters with walk animations)
+- Perlin noise terrain (no more checkerboard grass)
+- Beautiful water with caustics and shoreline foam
+- Tree overhaul (tapered trunks, layered canopies)
+- Rich terrain (stone, dirt, flowers, mushrooms all upgraded)
+- Building exterior facades (unique per building)
+- Tavern menu system
+- Visible bed + sleep prompt
+- Auto-feed animals from chest
+- Night gameplay improvements
 
 ### Shift 1 — Flexo (2026-03-29/30, overnight)
 **Did:**
-- Built entire Phase 0 prototype (23 PRs merged)
-- Sprint 9-12: Controls, dialogue, shops, camera, crafting, fencing, decorations
-- Title screen, quest markers, pause menu, terrain footsteps
-- Fixed multiple black screen crashes
-- Created FLEXO-AUDIT-TASK.md
-- Updated ROADMAP.md with 5-year plan
+- Built entire prototype from zero (Sprints 1-11)
+- All core systems: mining, farming, economy, NPCs, quests, crafting, UI
 
 ---
 
 ## 📏 Rules for Devs
 
-1. **ALWAYS read HANDOFF.md first** when starting a shift
-2. **ALWAYS `git pull origin main`** before making any changes
-3. **ALWAYS update HANDOFF.md** before ending your shift
-4. **Use branches** for features (`feat/fencing`, `fix/crop-items`) — don't commit to main directly
-5. **Check the "Known Bugs" section** before building — someone may have already fixed it
-6. **Don't duplicate work** — if it's in the "What's Working" list, it's done
-7. **Log what you did AND what's next** in the Shift Log
-8. **Note any blockers** (permissions, dependencies, design decisions needed)
-9. **Save version bumps** — if you change save format, increment the version number in saveGame/loadGame
-10. **Test before pushing** — open index.html locally and play through the core loop
+1. **ALWAYS read HANDOFF.md first**
+2. **ALWAYS `git pull origin main`** before changes
+3. **ALWAYS update HANDOFF.md** before ending shift
+4. **Test before pushing** — `node -c web/game.js` + play test
+5. **Don't break existing features**
+6. **Current focus: VISUAL POLISH** — not new features
 
 ## 🔑 Repo Access
-
-- **Bender21m/satoshi-valley** — main repo, GitHub Pages deploys from here
-- **satsdisco/satoshi-valley** — fork, used for PRs
-- **satsdisco** PAT can read Bender21m but can't push/create PRs (needs token update)
 - **Flexo** pushes directly to Bender21m (has access)
+- **Bender** uses fork + PRs from satsdisco
 
 ---
 
-*Last dev to touch this file wins all arguments about code style.* ⚡
+*Current priority: Make Satoshi Valley the most beautiful pixel art Bitcoin game ever made.* 🧡
