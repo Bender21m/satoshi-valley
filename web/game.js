@@ -1857,9 +1857,13 @@ function update(dt) {
     for(const a of animals){
       const info=ANIMAL_TYPES[a.type];if(!info)continue;
       if(info.feedCost>0){
-        const feedSlot=inv.find(s=>s&&s.id==='feed');
-        if(feedSlot&&feedSlot.qty>=info.feedCost){
-          feedSlot.qty-=info.feedCost;if(feedSlot.qty<=0){const idx=inv.indexOf(feedSlot);inv[idx]=null;}
+        // Check inventory first, then chest (#65)
+        let feedSlot=inv.find(s=>s&&s.id==='feed'&&s.qty>=info.feedCost);
+        let fromChest=false;
+        if(!feedSlot){feedSlot=chestInv.find(s=>s&&s.id==='feed'&&s.qty>=info.feedCost);fromChest=true;}
+        if(feedSlot){
+          feedSlot.qty-=info.feedCost;
+          if(feedSlot.qty<=0){const arr=fromChest?chestInv:inv;const idx=arr.indexOf(feedSlot);arr[idx]=null;}
           a.fed=true;a.happiness=Math.min(100,a.happiness+5);
         }else{a.fed=false;a.happiness=Math.max(0,a.happiness-15);}
       }else{a.fed=true;}
@@ -1867,6 +1871,9 @@ function update(dt) {
       if(a.fed&&a.daysSinceProd>=info.produceTime&&a.happiness>=30){a.prodReady=true;}
     }
     triggerRandomEvent(); // Bitcoin culture events
+    // Night passive energy drain is faster (#63)
+    const nightHour=getHour();
+    if(nightHour>=22||nightHour<5){player.energy=Math.max(0,player.energy-3);if(player.energy<15)notify('😴 You should sleep... it\'s late.',2);}
     createDaySummary(); // Show daily recap
     // Reset NPC talk flags
     for (const name in relationships) { relationships[name].talked = false; relationships[name].gifted = false; }
@@ -1961,10 +1968,16 @@ function update(dt) {
       else if(interior.type==='tavern')nr={role:'tavern',name:'Barkeep'};
     }
     if(nr&&!shopOpen){
-      shopOpen=true;shopCur=0;
-      shopMode=nr.role==='market'?'sell':'buy';
-      shopNpcRole=nr.role;
-      sfx.menuOpen();dlg=null;
+      // Shops close at night (9pm-7am) except tavern (#63)
+      const shopHour=getHour();
+      if((shopHour>=21||shopHour<7)&&nr.role!=='tavern'){
+        notify('🌙 Shop is closed! Come back after 7 AM.',2);sfx.error();
+      }else{
+        shopOpen=true;shopCur=0;
+        shopMode=nr.role==='market'?'sell':'buy';
+        shopNpcRole=nr.role;
+        sfx.menuOpen();dlg=null;
+      }
     }else if(shopOpen){shopOpen=false;sfx.menuClose();}
   }
   if(jp['i']||jp['tab']){if(!shopOpen){invOpen=!invOpen;invOpen?sfx.menuOpen():sfx.menuClose();}}
@@ -2337,11 +2350,13 @@ function update(dt) {
       // SHOVEL — pick up placed items and rigs
       else if(sel.id==='shovel'){
         if(!useEnergy(2))return;
+        // Search from both facing direction AND player position for easier pickup (#66)
         const ix=player.x+player.facing.x*20,iy=player.y+player.facing.y*20;
-        // Check placed items first
+        const pickRange=36; // Increased from 24
         let picked=false;
         for(let i=placed.length-1;i>=0;i--){
-          if(Math.hypot(placed[i].x-ix,placed[i].y-iy)<24){
+          const pd=Math.min(Math.hypot(placed[i].x-ix,placed[i].y-iy),Math.hypot(placed[i].x-player.x,placed[i].y-player.y));
+          if(pd<pickRange){
             const p=placed[i];
             const itemMap={solar_panel:'solar_panel',battery:'battery',cooling_fan:'cooling_fan',chest:'chest',flower_pot:'flower_pot',torch_item:'torch_item',bitcoin_sign:'bitcoin_sign'};
             if(itemMap[p.type]){addItem(itemMap[p.type]);notify(`⚒️ Picked up ${p.type.replace('_',' ')}`,2);}
@@ -2354,7 +2369,7 @@ function update(dt) {
         // Check rigs
         if(!picked){
           for(let i=rigs.length-1;i>=0;i--){
-            if(Math.hypot(rigs[i].x-ix,rigs[i].y-iy)<24){
+            if(Math.min(Math.hypot(rigs[i].x-ix,rigs[i].y-iy),Math.hypot(rigs[i].x-player.x,rigs[i].y-player.y))<pickRange){
               const r=rigs[i];
               const rigItems=['cpu_miner','gpu_rig','asic_s21'];
               addItem(rigItems[r.tier]);
@@ -2365,7 +2380,7 @@ function update(dt) {
         }
         if(!picked){
           for(let i=animals.length-1;i>=0;i--){
-            if(Math.hypot(animals[i].x-ix,animals[i].y-iy)<24){
+            if(Math.min(Math.hypot(animals[i].x-ix,animals[i].y-iy),Math.hypot(animals[i].x-player.x,animals[i].y-player.y))<pickRange){
               const a=animals[i];const itemId=a.type==='bee'?'bee_hive':a.type;
               addItem(itemId);animals.splice(i,1);
               sfx.interact();notify('⚒️ Picked up '+ANIMAL_TYPES[a.type].name,2);picked=true;break;
