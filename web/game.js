@@ -106,7 +106,33 @@ canvas.addEventListener('mousemove', e => {
 });
 
 canvas.addEventListener('click', e => {
-  if (gameState !== 'playing') return;
+  if (gameState !== 'playing') {
+    // Title menu click handling
+    if (gameState === 'intro' && titleMenuOpen) {
+      const hasSave = !!localStorage.getItem('sv_save');
+      const options = hasSave ? ['new_game','continue','controls'] : ['new_game','controls'];
+      const menuY = canvas.height * 0.50;
+      const menuSpacing = Math.floor(canvas.width * 0.035);
+      for (let i = 0; i < options.length; i++) {
+        const y = menuY + i * menuSpacing;
+        if (e.clientX >= canvas.width/2 - 140 && e.clientX <= canvas.width/2 + 140 &&
+            e.clientY >= y - menuSpacing*0.35 && e.clientY <= y + menuSpacing*0.35) {
+          titleCur = i;
+          // Trigger selection
+          const choice = options[i];
+          if (choice === 'new_game') { localStorage.removeItem('sv_save'); gameState='playing'; titleMenuOpen=false; sfx.story(); startMusic(); }
+          else if (choice === 'continue') { loadGame(); titleMenuOpen=false; startMusic(); }
+          else if (choice === 'controls') { showControls=true; }
+          return;
+        }
+      }
+    }
+    // Click to advance intro slides
+    if (gameState === 'intro' && !titleMenuOpen && introStep < INTRO_SLIDES.length - 1) {
+      introStep++; introTimer = 0;
+    }
+    return;
+  }
   // Pause menu click
   if (pauseOpen) {
     const pw=320,ph=60+PAUSE_ITEMS.length*50,px=(canvas.width-pw)/2,py=(canvas.height-ph)/2;
@@ -119,7 +145,7 @@ canvas.addEventListener('click', e => {
         else if(item==='Load Game'){loadGame();pauseOpen=false;}
         else if(item==='Music'){toggleMusic();}
         else if(item==='Controls'){showControls=true;pauseOpen=false;}
-        else if(item==='Quit to Title'){gameState='intro';introStep=8;pauseOpen=false;shopOpen=false;invOpen=false;citadelMenuOpen=false;dlg=null;sfx.menuClose();}
+        else if(item==='Quit to Title'){gameState='intro';introStep=INTRO_SLIDES.length-1;titleMenuOpen=true;titleCur=0;titleTip=BTC_TIPS[Math.floor(Math.random()*BTC_TIPS.length)];pauseOpen=false;shopOpen=false;invOpen=false;citadelMenuOpen=false;dlg=null;sfx.menuClose();}
       }
     });
     return;
@@ -416,6 +442,10 @@ let minimapOpen = true;
 let interior = null; // null = overworld, or {type, map, w, h, furniture, doorX, returnX, returnY}
 let doorCooldown = 0; // prevent instant re-entry after exiting
 let transition = null; // {type:'fadeIn'|'fadeOut', timer, duration, callback}
+let titleMenuOpen = false;
+let titleCur = 0;
+let titleTip = '';
+let interiorNPCs = []; // NPCs present in current interior
 const INTERIOR_MAPS = {}; // generated once, keyed by building type
 
 const INTRO_SLIDES = [
@@ -1413,23 +1443,43 @@ function updateIntro(dt) {
   introTimer += dt;
   const slide = INTRO_SLIDES[introStep];
   
-  if (jp['enter'] || jp['e'] || jp[' ']) {
-    if (introStep === INTRO_SLIDES.length - 1) {
-      // Check for save
-      if (localStorage.getItem('sv_save')) {
-        if (confirm('Continue saved game?')) { loadGame(); }
-        else { gameState = 'playing'; sfx.story(); startMusic(); }
-      } else {
-        gameState = 'playing'; sfx.story(); startMusic();
+  // Title menu on last slide
+  if (introStep === INTRO_SLIDES.length - 1) {
+    if (!titleMenuOpen) {
+      titleMenuOpen = true;
+      titleCur = localStorage.getItem('sv_save') ? 1 : 0; // default to Continue if save exists
+      titleTip = BTC_TIPS[Math.floor(Math.random() * BTC_TIPS.length)];
+    }
+    
+    const hasSave = !!localStorage.getItem('sv_save');
+    const options = hasSave ? ['new_game','continue','controls'] : ['new_game','controls'];
+    
+    // Navigation
+    if (jp['arrowup'] || jp['w']) { titleCur = Math.max(0, titleCur - 1); sfx.interact(); }
+    if (jp['arrowdown'] || jp['s']) { titleCur = Math.min(options.length - 1, titleCur + 1); sfx.interact(); }
+    
+    if (jp['enter'] || jp['e'] || jp[' ']) {
+      const choice = options[titleCur];
+      if (choice === 'new_game') {
+        localStorage.removeItem('sv_save');
+        gameState = 'playing'; titleMenuOpen = false;
+        sfx.story(); startMusic();
+      } else if (choice === 'continue') {
+        loadGame(); titleMenuOpen = false;
+        startMusic();
+      } else if (choice === 'controls') {
+        showControls = true;
       }
-    } else {
+    }
+  } else {
+    // Regular slides — advance on input or timer
+    if (jp['enter'] || jp['e'] || jp[' ']) {
       introStep++; introTimer = 0;
     }
-  }
-  
-  if (slide.dur < 900 && introTimer > slide.dur) {
-    introStep = Math.min(introStep + 1, INTRO_SLIDES.length - 1);
-    introTimer = 0;
+    if (slide.dur < 900 && introTimer > slide.dur) {
+      introStep = Math.min(introStep + 1, INTRO_SLIDES.length - 1);
+      introTimer = 0;
+    }
   }
   
   for (const k in jp) jp[k] = false;
@@ -1444,26 +1494,72 @@ function drawIntro() {
   ctx.globalAlpha = Math.max(0, alpha);
   
   if (introStep === INTRO_SLIDES.length - 1) {
-    // Title screen
+    // ---- TITLE SCREEN WITH MENU ----
+    const t = performance.now() / 1000;
+    
+    // Animated title with glow
+    const titleGlow = 0.6 + Math.sin(t * 1.5) * 0.2;
+    ctx.shadowColor = C.orange; ctx.shadowBlur = 20 * titleGlow;
     ctx.fillStyle = C.orange;
     ctx.font = `bold ${Math.floor(canvas.width * 0.04)}px ${FONT}`;
     ctx.textAlign = 'center';
-    ctx.fillText('⛏️ SATOSHI VALLEY ⛏️', canvas.width/2, canvas.height * 0.35);
+    ctx.fillText('⛏️ SATOSHI VALLEY ⛏️', canvas.width/2, canvas.height * 0.28);
+    ctx.shadowBlur = 0;
     
+    // Subtitle
     ctx.fillStyle = '#AAA';
-    ctx.font = `${Math.floor(canvas.width * 0.014)}px ${FONT}`;
-    ctx.fillText('A Bitcoin Farming Sim', canvas.width/2, canvas.height * 0.42);
+    ctx.font = `${Math.floor(canvas.width * 0.013)}px ${FONT}`;
+    ctx.fillText('A Bitcoin Farming Sim', canvas.width/2, canvas.height * 0.35);
+    ctx.fillStyle = '#777';
+    ctx.font = `italic ${Math.floor(canvas.width * 0.01)}px ${FONT}`;
+    ctx.fillText('Stack sats. Build your citadel. Fix the money, fix the world.', canvas.width/2, canvas.height * 0.40);
     
-    // Pulsing "Press ENTER"
-    ctx.globalAlpha = 0.5 + Math.sin(performance.now() / 500) * 0.5;
-    ctx.fillStyle = C.orange;
-    ctx.font = `bold ${Math.floor(canvas.width * 0.012)}px ${FONT}`;
-    ctx.fillText('Press ENTER to begin', canvas.width/2, canvas.height * 0.6);
+    // Menu options
+    const hasSave = !!localStorage.getItem('sv_save');
+    const options = hasSave
+      ? [{label:'⛏️  New Game', id:'new_game'}, {label:'📂  Continue', id:'continue'}, {label:'🎮  Controls', id:'controls'}]
+      : [{label:'⛏️  New Game', id:'new_game'}, {label:'🎮  Controls', id:'controls'}];
     
+    const menuY = canvas.height * 0.50;
+    const menuSpacing = Math.floor(canvas.width * 0.035);
+    
+    options.forEach((opt, i) => {
+      const y = menuY + i * menuSpacing;
+      const selected = i === titleCur;
+      
+      // Selection indicator
+      if (selected) {
+        const pulse = 0.15 + Math.sin(t * 3) * 0.05;
+        ctx.fillStyle = `rgba(247,147,26,${pulse})`;
+        ctx.fillRect(canvas.width/2 - 140, y - menuSpacing * 0.35, 280, menuSpacing * 0.7);
+      }
+      
+      ctx.fillStyle = selected ? C.orange : '#666';
+      ctx.font = `bold ${Math.floor(canvas.width * 0.016)}px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.fillText(opt.label, canvas.width/2, y + 6);
+      
+      if (selected) {
+        // Arrow indicators
+        ctx.fillText('▸', canvas.width/2 - 120, y + 6);
+        ctx.fillText('◂', canvas.width/2 + 120, y + 6);
+      }
+    });
+    
+    // Bitcoin tip at bottom
     ctx.globalAlpha = 0.4;
-    ctx.fillStyle = '#666';
-    ctx.font = `${Math.floor(canvas.width * 0.009)}px ${FONT}`;
-    if (localStorage.getItem('sv_save')) ctx.fillText('(Saved game found)', canvas.width/2, canvas.height * 0.65);
+    ctx.fillStyle = C.orange;
+    ctx.font = `italic ${Math.floor(canvas.width * 0.009)}px ${FONT}`;
+    ctx.fillText('💡 ' + titleTip, canvas.width/2, canvas.height * 0.85);
+    
+    // Version
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#555';
+    ctx.font = `${Math.floor(canvas.width * 0.008)}px ${FONT}`;
+    ctx.textAlign = 'right';
+    ctx.fillText('v0.6', canvas.width - 20, canvas.height - 12);
+    ctx.textAlign = 'left';
+    ctx.fillText('↑↓ Navigate  Enter Select', 20, canvas.height - 12);
   } else {
     // Story slides
     ctx.fillStyle = C.white;
@@ -1518,7 +1614,7 @@ function update(dt) {
       else if(_psel==='Load Game'){loadGame();pauseOpen=false;}
       else if(_psel==='Music'){toggleMusic();}
       else if(_psel==='Controls'){showControls=true;pauseOpen=false;}
-      else if(_psel==='Quit to Title'){gameState='intro';introStep=8;pauseOpen=false;shopOpen=false;invOpen=false;citadelMenuOpen=false;dlg=null;sfx.menuClose();}
+      else if(_psel==='Quit to Title'){gameState='intro';introStep=INTRO_SLIDES.length-1;titleMenuOpen=true;titleCur=0;titleTip=BTC_TIPS[Math.floor(Math.random()*BTC_TIPS.length)];pauseOpen=false;shopOpen=false;invOpen=false;citadelMenuOpen=false;dlg=null;sfx.menuClose();}
     }
     for(const k in jp)jp[k]=false;
     return;
@@ -1742,6 +1838,18 @@ function update(dt) {
           cam.y = player.y * SCALE - canvas.height / 2;
           startTransition('fadeIn', 0.4, null);
           notify('Entered ' + buildingType.charAt(0).toUpperCase() + buildingType.slice(1), 2);
+          // Populate interior NPCs
+          interiorNPCs = [];
+          if (buildingType === 'shop') {
+            interiorNPCs.push({ name:'Ruby', x:3*TILE+8, y:2*TILE+8, col:'#CC4444', hair:'#FF6644',
+              dlg:['"Welcome to my shop! Take a look around."','"Everything priced in sats — no fiat accepted."','"Your uncle was my best customer."','"Need anything? I\'ve got CPUs to ASICs."'] });
+          } else if (buildingType === 'tavern') {
+            interiorNPCs.push({ name:'Barkeep', x:4*TILE+8, y:2*TILE+8, col:'#8B6340', hair:'#2A1A08',
+              dlg:['"Welcome to the Hodl Tavern. What\'ll it be?"','"We only serve Bitcoin-branded beverages here."','"Your uncle used to sit right where you\'re standing."','"Lightning tips accepted and appreciated."'] });
+          } else if (buildingType === 'hall') {
+            interiorNPCs.push({ name:'Mayor Keynesian', x:4*TILE+8, y:2*TILE+8, col:'#888', hair:'#AAA',
+              dlg:['"Ah, you\'ve come to discuss village policy?"','"I\'ve been thinking about a new stimulus package..."','"The village budget is... flexible. Very flexible."','"Don\'t listen to the hermit. The system works fine."'] });
+          }
         });
       }
     }
@@ -1758,6 +1866,7 @@ function update(dt) {
       const rx = interior.returnX, ry = interior.returnY;
       startTransition('fadeOut', 0.3, () => {
         interior = null;
+        interiorNPCs = [];
         doorCooldown = 1.0;
         player.x = rx; player.y = ry;
         cam.x = player.x * SCALE - canvas.width / 2;
@@ -1819,6 +1928,16 @@ function update(dt) {
           for(const p of placed){
             if(p.type==='chest'&&Math.hypot(p.x-ix,p.y-iy)<24){
               chestOpen=true;sfx.menuOpen();break;
+            }
+          }
+          // Interior NPCs (when inside a building)
+          if(interior && interiorNPCs.length > 0){
+            for(const n of interiorNPCs){
+              if(Math.hypot(n.x-ix,n.y-iy)<48){
+                const _nd3=n.dlg[Math.floor(Math.random()*n.dlg.length)];
+                dlg={name:n.name,text:_nd3,role:'friend',fullText:_nd3,displayedChars:0,done:false};dlgCharTimer=0;sfx.interact();
+                addXP('social',2);break;
+              }
             }
           }
           if(!chestOpen)for(const n of npcs){if(Math.hypot(n.x-ix,n.y-iy)<32){const _nd2=n.dlg[Math.floor(Math.random()*n.dlg.length)];dlg={name:n.name,text:_nd2,role:n.role,fullText:_nd2,displayedChars:0,done:false};dlgCharTimer=0;sfx.interact();
@@ -3885,6 +4004,29 @@ function drawPauseMenu() {
 }
 
 // ---- NPC hearts in HUD near NPC ----
+function drawInteriorNPC(n) {
+  const sx=n.x*SCALE-cam.x, sy=n.y*SCALE-cam.y;
+  const w=ST, h=ST+8, px=sx-w/2, py=sy-h/2;
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,.15)';ctx.beginPath();ctx.ellipse(sx,sy+h/2,12,4,0,0,Math.PI*2);ctx.fill();
+  // Body
+  ctx.fillStyle=n.col;ctx.fillRect(px+8,py+14,w-16,h-28);
+  // Head
+  ctx.fillStyle=C.skin;ctx.fillRect(px+12,py+2,w-24,16);
+  // Hair
+  ctx.fillStyle=n.hair;ctx.fillRect(px+10,py-2,w-20,8);
+  // Eyes
+  ctx.fillStyle=C.black;ctx.fillRect(px+16,py+8,3,3);ctx.fillRect(px+w-19,py+8,3,3);
+  // Name + prompt
+  const dist=Math.hypot(n.x-player.x, n.y-player.y);
+  if(dist<64){
+    ctx.fillStyle=C.white;ctx.font=`bold 13px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(n.name,sx,py-10);
+    ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;
+    ctx.fillText('[E] Talk',sx,py-24);
+  }
+}
+
 function drawNPCHearts(npc) {
   initRelationships();
   const r = relationships[npc.name]; if (!r) return;
@@ -3937,6 +4079,8 @@ function draw(){
       entities.push({y:f.y*TILE+TILE, draw:()=>drawDecor({type:'furniture',item:f.item,x:f.x,y:f.y})});
     }
     for(const r of rigs){ if(r.interior===interior.type) entities.push({y:r.y,draw:()=>drawRig(r)}); }
+    // Interior NPCs
+    for(const n of interiorNPCs) entities.push({y:n.y,draw:()=>drawInteriorNPC(n)});
   }
   entities.push({y:player.y,draw:drawPlayer});
   entities.sort((a,b)=>a.y-b.y);
