@@ -1725,9 +1725,9 @@ function update(dt) {
     player.energy=Math.max(0,player.energy-2);
     if(player.energy<20&&player.energy>0)notify('Getting tired...',2);
     updateCrops(); // Grow crops each day
-    // Rain bonus: crops grow 1 extra day in rain/storm
+    // Rain bonus: crops grow 1 extra day in rain/storm (#60 — use integer to avoid harvest check issues)
     if(weather.current==='rain'||weather.current==='storm'){
-      for(const c of crops){c.dayAge+=0.5;}
+      for(const c of crops){c.dayAge+=1;}
       notify('🌧️ Rain helped your crops grow faster!',2);
     }
     // Animal daily update
@@ -1771,7 +1771,23 @@ function update(dt) {
 
   time.spd = keys[' '] ? 15 : 1;
   if(player.boost>0){player.boost-=dt;if(player.boost<=0)notify('☕ Coffee wore off',1.5);}
-  const spd = player.speed*(player.boost>0?1.5:1)*(player.energy<=0?0.5:1);
+  // Energy affects movement speed (#51 — meaningful consequences)
+  const energyMult = player.energy<=0?0.35:player.energy<15?0.65:player.energy<30?0.85:1;
+  const spd = player.speed*(player.boost>0?1.5:1)*energyMult;
+  // Pass out at 0 energy if not at home (forced blackout)
+  if(player.energy<=0&&!interior&&Math.random()<0.001){
+    notify('💫 You collapsed from exhaustion!',3,true);sfx.error();
+    startTransition('fadeOut',0.8,()=>{
+      time.cur=0.25;player.energy=Math.floor(player.maxEnergy*0.5);
+      player.wallet=Math.max(0,player.wallet-Math.floor(player.wallet*0.05));
+      notify('😵 You woke up at home. Lost 5% of your sats.',4,true);
+      // Teleport home
+      const ct=CITADEL_TIERS[citadelTier];
+      player.x=homeX*TILE+8;player.y=(homeY+Math.floor(ct.h/2)+2)*TILE+8;
+      cam.x=player.x*SCALE-canvas.width/2;cam.y=player.y*SCALE-canvas.height/2;
+      startTransition('fadeIn',0.8,null);
+    });
+  }
   
   // Objective checks
   if(player.totalEarned>=1000) completeObjective('earn_1000');
@@ -1989,7 +2005,7 @@ function update(dt) {
       if(hour>=18||hour<6){
         startTransition('fadeOut', 0.6, ()=>{
           time.cur=0.25; // 6 AM
-          player.energy=Math.min(player.maxEnergy,player.energy+50);
+          player.energy=player.maxEnergy; // Full restore on sleep (#59)
           notify('💤 You slept through the night. Energy restored!',3);
           sfx.story();
           startTransition('fadeIn', 0.6, null);
@@ -2046,16 +2062,7 @@ function update(dt) {
               chestOpen=true;sfx.menuOpen();break;
             }
           }
-          // Interior NPCs (when inside a building)
-          if(interior && interiorNPCs.length > 0){
-            for(const n of interiorNPCs){
-              if(Math.hypot(n.x-ix,n.y-iy)<48){
-                const _nd3=n.dlg[Math.floor(Math.random()*n.dlg.length)];
-                dlg={name:n.name,text:_nd3,role:'friend',fullText:_nd3,displayedChars:0,done:false};dlgCharTimer=0;sfx.interact();
-                addXP('social',2);break;
-              }
-            }
-          }
+          // Interior NPCs handled at top of interact block (priority check) — removed duplicate here (#58)
           if(!chestOpen)for(const n of npcs){if(Math.hypot(n.x-ix,n.y-iy)<32){const _nd2=n.dlg[Math.floor(Math.random()*n.dlg.length)];dlg={name:n.name,text:_nd2,role:n.role,fullText:_nd2,displayedChars:0,done:false};dlgCharTimer=0;sfx.interact();
             if(n.name==='The Hermit')completeObjective('find_hermit');
             initRelationships();
