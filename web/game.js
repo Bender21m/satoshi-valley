@@ -791,8 +791,70 @@ const NPC_QUESTS = {
       reward:{sats:1000},
       dialogue:'"Nice catch! OK here\'s my story. The night I bought those pizzas, I almost went fishing instead. If I had... history would be different. Sometimes the path not taken matters most."',
       lore:'Pizza Pete still orders two pizzas every May 22nd. He pays in sats now.' },
+    { id:'pizza_2', title:'Pizza Day', task:'Earn 10,000 sats on a single day',
+      intro:'"May 22nd. That\'s the day. 10,000 BTC for two pizzas. Everyone laughs. But you know what? That transaction PROVED Bitcoin had real-world value. Without it, maybe none of this exists."',
+      check:()=>player.totalEarned>=10000,
+      reward:{sats:2222,items:[{id:'bread',qty:10}]},
+      dialogue:'"You earned 10K in a day. I spent 10K on lunch. We are not the same. But seriously — every sat spent in the real economy makes Bitcoin stronger. I proved that. With pepperoni."',
+      lore:'May 22, 2010: Laszlo Hanyecz paid 10,000 BTC for two Papa John\'s pizzas. It was the first known commercial Bitcoin transaction. Those pizzas are now worth billions.' },
+    { id:'pizza_3', title:'The Regret Question', task:'Own a Bitcoin Academy',
+      intro:'"People always ask: do you regret it? The pizzas. 10,000 Bitcoin. Here\'s what I tell them..."',
+      check:()=>placed.some(p=>p.type==='bitcoin_academy'),
+      reward:{sats:10000},
+      dialogue:'"Do I regret it? No. Because if nobody ever SPENT Bitcoin, it would just be numbers on a screen. I gave it value. I gave it PURPOSE. That\'s what this academy teaches. That Bitcoin is for USING, not just holding. Both matter."',
+      lore:'The eternal debate: spend or hold? The answer is both. Bitcoin needs spenders AND savers to function as money. Pizza Pete proved spending works. Hannah proves saving works. Both are right.' },
+  ],
+  'Seed Sally': [
+    { id:'sally_1', title:'The Seed Bank', task:'Plant one of each crop type',
+      intro:'"Seeds are like Bitcoin — small, easily dismissed, but given time and care, they become something incredible. Plant one of each type I sell."',
+      check:()=>{const types=new Set(crops.map(c=>c.type));return types.has('potato')&&types.has('tomato')&&types.has('corn');},
+      reward:{sats:500,items:[{id:'pumpkin_seed',qty:5}]},
+      dialogue:'"A diverse garden is a resilient garden. Just like a diverse skill set. Your uncle grew everything — even things nobody thought would survive in this climate. Here, try pumpkins."',
+      lore:'Sally was a botanist in Fiatropolis before the inflation got too bad. She moved to the valley after your uncle showed her you could live entirely off the land and Bitcoin.' },
+    { id:'sally_2', title:'Food Sovereignty', task:'Have 5 crops growing at once',
+      intro:'"In Fiatropolis, people depend on the government for food subsidies. Here, we grow our own. That\'s real sovereignty. Show me a garden with 5 crops going."',
+      check:()=>crops.length>=5,
+      reward:{sats:1500},
+      dialogue:'"Five crops! You\'re more self-sufficient than most families in Fiatropolis. They line up for government bread. You GROW your own. Your uncle said food sovereignty and monetary sovereignty go hand in hand. He was right."',
+      lore:'Food in Fiatropolis costs 10x what it did a decade ago. The Mayor blames "supply chain issues." Sally blames money printing.' },
+    { id:'sally_3', title:'The Carnivore\'s Garden', task:'Own a cow AND have crops growing',
+      intro:'"Your uncle had a theory. He called it the \'Complete Homestead.\' Animals AND plants. Meat AND vegetables. Bitcoin AND real skills. Can you build it?"',
+      check:()=>animals.some(a=>a.type==='cow')&&crops.length>=3,
+      reward:{sats:3000,items:[{id:'feed',qty:25}]},
+      dialogue:'"The Complete Homestead. Beef from your cows, vegetables from your garden, sats from your rigs, power from your panels. No dependence on anyone. Your uncle drew this on his wall. It\'s still there if you look closely in your cabin."',
+      lore:'Uncle Toshi believed the ideal life combined three things: sound money (Bitcoin), real food (animal-based + garden), and clean energy (solar). He called it the "sovereign triangle."' },
   ],
 };
+
+// ============================================================
+// WORLD EVENTS — Story events that trigger based on progress
+// ============================================================
+const STORY_EVENTS = [
+  { id:'fiat_refugees', trigger:()=>citadelTier>=2&&econ.cycle>=2, fired:false,
+    text:'🏃 Refugees from Fiatropolis are arriving at the valley! The inflation has gotten unbearable. Some are asking about Bitcoin.',
+    effect:()=>{notify('🏃 Fiatropolis refugees arriving! Talk to the Mayor.',5,true);} },
+  { id:'bank_wobble', trigger:()=>econ.phase===3&&econ.cycle>=3, fired:false,
+    text:'🏦 The Fiat Bank is showing cracks. Withdrawals are being limited. The Mayor looks worried.',
+    effect:()=>{notify('🏦 Fiat Bank in trouble! Check the notice board.',5,true);} },
+  { id:'merchant_arrives', trigger:()=>player.totalEarned>=25000, fired:false,
+    text:'🐪 A traveling merchant has arrived from the Eastern valleys! She trades in rare goods.',
+    effect:()=>{notify('🐪 Traveling merchant spotted near the tavern!',5,true);} },
+  { id:'lightning_network', trigger:()=>rigs.length>=5&&citadelTier>=2, fired:false,
+    text:'⚡ The Lightning Network reaches Satoshi Valley! Instant payments are now possible between buildings.',
+    effect:()=>{notify('⚡ Lightning Network activated! Fast travel coming soon.',5,true);} },
+  { id:'nostr_social', trigger:()=>Object.values(questProgress).reduce((s,v)=>s+v,0)>=10, fired:false,
+    text:'📱 The valley\'s Nostr relay is live! NPCs are posting notes about your achievements.',
+    effect:()=>{notify('📱 Valley Nostr relay is live! Check the notice board.',5,true);} },
+  { id:'first_conference', trigger:()=>citadelTier>=3&&animals.length>=3, fired:false,
+    text:'🎤 The village is hosting its first Bitcoin Conference! All NPCs are gathering at the Town Hall.',
+    effect:()=>{notify('🎤 Bitcoin Conference at Town Hall! Everyone\'s invited.',6,true);} },
+  { id:'uncle_memory', trigger:()=>foundWords.length>=12, fired:false,
+    text:'💭 As you collect more of Uncle Toshi\'s words, memories begin to surface. You remember visiting this valley as a child...',
+    effect:()=>{notify('💭 A childhood memory surfaces... Find more seed words.',5,true);} },
+  { id:'hyperbitcoinization_begins', trigger:()=>player.totalEarned>=500000&&citadelTier>=4, fired:false,
+    text:'🌍 It\'s happening. Fiatropolis has officially collapsed. The world is looking to valleys like yours. Hyperbitcoinization has begun.',
+    effect:()=>{notify('🌍 HYPERBITCOINIZATION HAS BEGUN. The world is changing.',8,true);sfx.block();} },
+];
 
 // Quest Journal — tracks completed quest stories
 let questJournal = []; // [{id, npcName, title, lore, completedDay}]
@@ -1818,7 +1880,7 @@ const cam = {x:0,y:0};
 // ============================================================
 // SAVE / LOAD
 // ============================================================
-function saveGame(){try{localStorage.setItem('sv_save',JSON.stringify({v:8,p:{x:player.x,y:player.y,w:player.wallet,te:player.totalEarned,e:player.energy},inv:inv.map(s=>s?{id:s.id,q:s.qty}:null),ss:selSlot,rigs:rigs.map(r=>({x:r.x,y:r.y,t:r.tier,p:r.powered,tp:r.temp,d:r.dur,m:r.mined,int:r.interior||null})),placed:placed.map(i=>({x:i.x,y:i.y,t:i.type})),fences:[...fences],econ:{...econ},time:{...time},pwr:{p:pwr.panels,b:pwr.batts},obj:objectives.map(o=>o.done),tut:tutorialDone,skills,crops:crops.map(c=>({x:c.x,y:c.y,type:c.type,dayAge:c.dayAge,stage:c.stage})),rels:relationships,citadelTier,animals:animals.map(a=>({x:a.x,y:a.y,t:a.type,hx:a.homeX,hy:a.homeY,hp:a.happiness,fed:a.fed,dsp:a.daysSinceProd,pr:a.prodReady,dir:a.dir})),weather:{c:weather.current},chest:chestInv.map(s=>s?{id:s.id,q:s.qty}:null),fw:foundWords,qp:questProgress,qj:questJournal}));notify('💾 Saved!',2);sfx.buy();}catch(e){notify('❌ Save failed!',2);}}
+function saveGame(){try{localStorage.setItem('sv_save',JSON.stringify({v:8,p:{x:player.x,y:player.y,w:player.wallet,te:player.totalEarned,e:player.energy},inv:inv.map(s=>s?{id:s.id,q:s.qty}:null),ss:selSlot,rigs:rigs.map(r=>({x:r.x,y:r.y,t:r.tier,p:r.powered,tp:r.temp,d:r.dur,m:r.mined,int:r.interior||null})),placed:placed.map(i=>({x:i.x,y:i.y,t:i.type})),fences:[...fences],econ:{...econ},time:{...time},pwr:{p:pwr.panels,b:pwr.batts},obj:objectives.map(o=>o.done),tut:tutorialDone,skills,crops:crops.map(c=>({x:c.x,y:c.y,type:c.type,dayAge:c.dayAge,stage:c.stage})),rels:relationships,citadelTier,animals:animals.map(a=>({x:a.x,y:a.y,t:a.type,hx:a.homeX,hy:a.homeY,hp:a.happiness,fed:a.fed,dsp:a.daysSinceProd,pr:a.prodReady,dir:a.dir})),weather:{c:weather.current},chest:chestInv.map(s=>s?{id:s.id,q:s.qty}:null),fw:foundWords,qp:questProgress,qj:questJournal,se:STORY_EVENTS.map(e=>e.fired)}));notify('💾 Saved!',2);sfx.buy();}catch(e){notify('❌ Save failed!',2);}}
 function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!d)return notify('No save found!',2),false;player.x=d.p.x;player.y=d.p.y;player.wallet=d.p.w;player.totalEarned=d.p.te;player.energy=d.p.e||100;inv.length=0;d.inv.forEach(s=>inv.push(s?{id:s.id,qty:s.q}:null));selSlot=d.ss||0;rigs.length=0;d.rigs.forEach(r=>{const ri=new Rig(r.x,r.y,r.t);ri.powered=r.p;ri.temp=r.tp;ri.dur=r.d;ri.mined=r.m;ri.interior=r.int||null;rigs.push(ri);});placed.length=0;(d.placed||[]).forEach(i=>placed.push(i));Object.assign(econ,d.econ);Object.assign(time,d.time);pwr.panels=d.pwr?.p||[];pwr.batts=d.pwr?.b||[];if(d.obj)d.obj.forEach((done,i)=>{if(objectives[i])objectives[i].done=done;});tutorialDone=d.tut||false;
     if(d.skills)Object.assign(skills,d.skills);
     crops.length=0;if(d.crops)d.crops.forEach(c=>crops.push(c));
@@ -1830,6 +1892,7 @@ function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!
     foundWords=(d.fw||[]);
     questProgress=(d.qp||{});
     questJournal=(d.qj||[]);
+    if(d.se)(d.se).forEach((f,i)=>{if(STORY_EVENTS[i])STORY_EVENTS[i].fired=f;});
     fences.length=0;(d.fences||[]).forEach(f=>fences.push(f));
     gameState='playing';notify('📂 Loaded!',2);sfx.buy();return true;}catch(e){notify('❌ Load failed!',2);return false;}}
 
@@ -2089,6 +2152,8 @@ function update(dt) {
       if(a.fed&&a.daysSinceProd>=info.produceTime&&a.happiness>=30){a.prodReady=true;}
     }
     triggerRandomEvent(); // Bitcoin culture events
+    // Check story events
+    for(const ev of STORY_EVENTS){if(!ev.fired&&ev.trigger()){ev.fired=true;ev.effect();}}
     // Night passive energy drain is faster (#63)
     const nightHour=getHour();
     if(nightHour>=22||nightHour<5){player.energy=Math.max(0,player.energy-3);if(player.energy<15)notify('😴 You should sleep... it\'s late.',2);}
