@@ -475,8 +475,8 @@ const ITEMS = {
   axe:{name:'Axe',desc:'Chop trees for wood, clear grass for fiber',icon:'🪓',type:'tool',buy:250,sell:100,stack:true},
   hoe:{name:'Hoe',desc:'Convert grass to farmable dirt',icon:'🌾',type:'tool',buy:200,sell:80,stack:true},
   shovel:{name:'Shovel',desc:'Pick up placed items back to inventory',icon:'⚒️',type:'tool',buy:150,sell:60,stack:true},
-  immersion_tank:{name:'Immersion Tank',desc:'Advanced cooling — doubles rig lifespan',icon:'🛢️',type:'upgrade',buy:15000,sell:6000,stack:true},
-  mesh_antenna:{name:'Mesh Antenna',desc:'Off-grid comms — boosts social XP gain',icon:'📡',type:'upgrade',buy:3000,sell:1200,stack:true},
+  immersion_tank:{name:'Immersion Tank',desc:'Massive cooling boost. Rigs never overheat near this.',icon:'🛢️',type:'upgrade',buy:15000,sell:6000,stack:true},
+  mesh_antenna:{name:'Mesh Antenna',desc:'+50% social XP. Spread the orange pill.',icon:'📡',type:'upgrade',buy:3000,sell:1200,stack:true},
   bitcoin_sign:{name:'Bitcoin Sign',desc:'Decorative ₿ sign for your citadel',icon:'🪧',type:'deco',buy:500,sell:200,stack:true},
   chest:{name:'Storage Chest',desc:'Place near home for 20 extra item slots',icon:'📦',type:'placeable',buy:500,sell:200,stack:true},
   goat:{name:'Goat',desc:'Produces milk daily. Every citadel needs goats.',icon:'🐐',type:'animal',buy:2000,sell:800,stack:false},
@@ -509,10 +509,10 @@ const ITEMS = {
   citadel_materials:{name:'Citadel Materials',desc:'Reduces next citadel upgrade cost by 25%',icon:'🏰',type:'quest',buy:0,sell:0,stack:false},
   fishing_rod:{name:'Fishing Rod',desc:'Cast into water. Press R facing water!',icon:'🎣',type:'tool',buy:500,sell:200,stack:true},
   // Late-game sat sinks
-  satellite_node:{name:'Satellite Node',desc:'Broadcast Bitcoin to the world. Endgame flex.',icon:'🛰️',type:'deco',buy:500000,sell:200000,stack:false},
-  freedom_monument:{name:'Freedom Monument',desc:'A monument to financial sovereignty.',icon:'🗽',type:'deco',buy:200000,sell:80000,stack:false},
-  bitcoin_academy:{name:'Bitcoin Academy',desc:'Teach the village about sound money.',icon:'🎓',type:'deco',buy:100000,sell:40000,stack:false},
-  rocket_to_moon:{name:'Rocket to the Moon',desc:'We\'re all gonna make it. 🚀',icon:'🚀',type:'deco',buy:1000000,sell:400000,stack:false},
+  satellite_node:{name:'Satellite Node',desc:'+20% mining income. Broadcast sats from space!',icon:'🛰️',type:'deco',buy:500000,sell:200000,stack:false},
+  freedom_monument:{name:'Freedom Monument',desc:'NPC happiness boost. A beacon of sovereignty.',icon:'🗽',type:'deco',buy:200000,sell:80000,stack:false},
+  bitcoin_academy:{name:'Bitcoin Academy',desc:'+25% ALL XP gain. Knowledge is power.',icon:'🎓',type:'deco',buy:100000,sell:40000,stack:false},
+  rocket_to_moon:{name:'Rocket to the Moon',desc:'+50% ALL income. WAGMI! 🚀',icon:'🚀',type:'deco',buy:1000000,sell:400000,stack:false},
   volcano_drill:{name:'Volcano Mining License',desc:'Unlock geothermal mining. Coming soon!',icon:'🌋',type:'quest',buy:250000,sell:0,stack:false},
   salmon:{name:'Salmon',desc:'Fresh-caught salmon. Sell or eat.',icon:'🐟',type:'food',buy:0,sell:300,stack:true},
   trout:{name:'Trout',desc:'Rainbow trout. Tasty.',icon:'🐠',type:'food',buy:0,sell:200,stack:true},
@@ -1229,8 +1229,11 @@ function rebuildCitadel() {
 function upgradeCitadel() {
   if (citadelTier >= CITADEL_TIERS.length-1) { notify('🗼 Already at max Citadel tier!', 2); sfx.error(); return; }
   const next = CITADEL_TIERS[citadelTier+1];
-  if (player.wallet < next.cost) { notify(`Need ${fmt(next.cost)} sats to upgrade!`, 2); sfx.error(); return; }
-  player.wallet -= next.cost;
+  let cost = next.cost;
+  // Citadel materials discount
+  if(hasItem('citadel_materials')){cost=Math.ceil(cost*0.75);removeItem('citadel_materials');notify('🏰 Citadel materials used! 25% discount!',2);}
+  if (player.wallet < cost) { notify(`Need ${fmt(cost)} sats to upgrade!`, 2); sfx.error(); return; }
+  player.wallet -= cost;
   citadelTier++;
   rebuildCitadel();
   // Teleport player outside the new footprint to prevent getting trapped (#70)
@@ -1370,7 +1373,10 @@ class Rig {
   update(dt){
     this.at+=dt;if(this.at>.3){this.at=0;this.af=(this.af+1)%4;}
     let cool=0;
-    for(const i of placed) if(i.type==='cooling_fan'&&Math.hypot(i.x-this.x,i.y-this.y)<TILE*3) cool+=.15;
+    for(const i of placed){
+      if(i.type==='cooling_fan'&&Math.hypot(i.x-this.x,i.y-this.y)<TILE*3) cool+=.15;
+      if(i.type==='immersion_tank'&&Math.hypot(i.x-this.x,i.y-this.y)<TILE*4) cool+=.5; // Immersion = massive cooling
+    }
     this.ha+=dt;
     if(this.ha>=1){this.ha=0;if(this.powered&&this.dur>0)this.temp+=this.ht*3;this.temp-=(this.temp-20)*(.06+cool);this.temp=Math.max(15,Math.min(100,this.temp));if(this.temp>=85)this.oh=true;if(this.temp<65)this.oh=false;}
     if(!this.powered||this.dur<=0||this.oh)return 0;
@@ -1612,6 +1618,9 @@ const skills = {
 
 function addXP(skill, amount) {
   const s = skills[skill]; if (!s) return;
+  // Placed item bonuses
+  if(placed.some(p=>p.type==='bitcoin_academy')) amount=Math.ceil(amount*1.25); // Academy: +25% all XP
+  if(skill==='social'&&placed.some(p=>p.type==='mesh_antenna')) amount=Math.ceil(amount*1.5); // Mesh: +50% social XP
   s.xp += amount;
   while (s.xp >= s.next) {
     s.xp -= s.next; s.level++;
@@ -1806,6 +1815,23 @@ const BTC_EVENTS = [
   { text: '🌋 Volcano mining facility comes online in neighboring region!', effect: 'bull', phase: [0,1], chance: 0.04 },
   { text: '🗓️ Today is Proof of Keys Day! Not your keys, not your coins.', effect: 'none', phase: [0,1,2,3], chance: 0.03 },
   { text: '🎯 Block 21,000,000 mined. Oh wait, that\'s not how it works.', effect: 'none', phase: [0,1,2,3], chance: 0.02 },
+  // Satire & Humor
+  { text: '🥗 Mayor declares "Eat More Seed Oils" day. Village ignores him.', effect: 'none', phase: [0,1,2,3], chance: 0.04 },
+  { text: '🤡 Shitcoin salesman spotted at village border. Guards turned him away.', effect: 'none', phase: [1,2], chance: 0.05 },
+  { text: '📊 Larry made a chart showing he\'s "technically in profit." Nobody believes him.', effect: 'none', phase: [0,1,2,3], chance: 0.04 },
+  { text: '🥩 Carnivore festival! All steak sells for double today.', effect: 'bull', phase: [0,1,2], chance: 0.03 },
+  { text: '💊 WHO recommends 6-11 servings of grains daily. Village laughs.', effect: 'none', phase: [0,1,2,3], chance: 0.03 },
+  { text: '🏦 Fiat Bank introduces negative interest rates. Savers lose money for saving.', effect: 'fud', phase: [2,3], chance: 0.04 },
+  { text: '🧈 Butter prices hit ATH in Fiatropolis. Valley doesn\'t notice (we make our own).', effect: 'none', phase: [0,1,2,3], chance: 0.03 },
+  { text: '📰 "Bitcoin is just a fad" — Fiatropolis Times, every year since 2011', effect: 'none', phase: [0,1,2,3], chance: 0.04 },
+  { text: '🐐 Your goat ate Larry\'s trading journal. He says it\'s an improvement.', effect: 'none', phase: [0,1,2,3], chance: 0.03 },
+  { text: '🌾 Mayor proposes taxing sunshine. Even he realizes that\'s too far.', effect: 'none', phase: [0,1,2,3], chance: 0.03 },
+  { text: '🐝 Bees found mining sats. Biologists baffled. Bitcoiners unsurprised.', effect: 'none', phase: [0,1,2,3], chance: 0.02 },
+  { text: '📱 Fiatropolis launches CBDC. Citizens required to scan face to buy bread.', effect: 'fud', phase: [2,3], chance: 0.04 },
+  { text: '🍕 Pizza Pete argues with Hannah about whether the pizza was worth it. Again.', effect: 'none', phase: [0,1,2,3], chance: 0.04 },
+  { text: '⚡ Larry tries to pay tavern tab with an IOU. Barkeep says "Bitcoin or leave."', effect: 'none', phase: [0,1,2,3], chance: 0.03 },
+  { text: '🧠 "Fiat is just government shitcoin" — graffiti appears on Town Hall', effect: 'none', phase: [0,1,2,3], chance: 0.03 },
+  { text: '🏃 Man runs through village screaming "IT\'S GOING TO ZERO!" Old-timers don\'t even look up.', effect: 'none', phase: [3], chance: 0.06 },
 ];
 
 function triggerRandomEvent() {
@@ -2202,6 +2228,18 @@ function update(dt) {
     });
   }
   
+  // ---- PLACED ITEM EFFECTS ----
+  // Mesh antenna: boosts social XP by 50%
+  const hasMesh = placed.some(p=>p.type==='mesh_antenna');
+  // Bitcoin academy: boosts ALL XP by 25%
+  const hasAcademy = placed.some(p=>p.type==='bitcoin_academy');
+  // Satellite node: mining income +20%
+  const hasSatellite = placed.some(p=>p.type==='satellite_node');
+  // Freedom monument: NPC happiness boost
+  const hasMonument = placed.some(p=>p.type==='freedom_monument');
+  // Rocket: ultimate flex, +50% ALL income
+  const hasRocket = placed.some(p=>p.type==='rocket_to_moon');
+
   // Objective checks
   if(player.totalEarned>=1000) completeObjective('earn_1000');
   if(player.totalEarned>=50000) completeObjective('earn_50000');
@@ -2582,7 +2620,11 @@ function update(dt) {
       else if(sel.id==='stew'){removeItem('stew');player.energy=Math.min(player.maxEnergy,player.energy+50);sfx.coin();notify('🍲 Hearty stew! +50 energy',2);}
       else if(sel.id==='pie'){removeItem('pie');player.energy=Math.min(player.maxEnergy,player.energy+40);player.boost=25;sfx.coin();notify('🥧 Delicious pie! +40 energy, speed boost!',2);}
       else if(sel.id==='wine'){removeItem('wine');player.energy=Math.min(player.maxEnergy,player.energy+30);sfx.coin();notify('🍷 Sophisticated. +30 energy',2);}
-      else if(sel.id==='cheese'){removeItem('cheese');player.energy=Math.min(player.maxEnergy,player.energy+40);sfx.coin();notify('🧀 Aged cheese! +40 energy',1.5);}
+      else if(sel.id==='cheese'){removeItem('cheese');player.energy=Math.min(player.maxEnergy,player.energy+40);sfx.coin();notify('🧀 Aged cheese! +40 energy. Carnivore approved.',1.5);}
+      // Fish as food
+      else if(sel.id==='salmon'){removeItem('salmon');player.energy=Math.min(player.maxEnergy,player.energy+45);player.boost=20;sfx.coin();notify('🐟 Wild salmon! +45 energy, omega boost! No seed oils here.',2);}
+      else if(sel.id==='trout'){removeItem('trout');player.energy=Math.min(player.maxEnergy,player.energy+30);sfx.coin();notify('🐠 Fresh trout! +30 energy. Farm to table, lake to plate.',1.5);}
+      else if(sel.id==='bitcoin_fish'){removeItem('bitcoin_fish');player.energy=player.maxEnergy;player.boost=60;sfx.block();notify('🐡 THE BITCOIN FISH! Full energy + 60s speed boost! Legendary!',4);addXP('foraging',20);}
       else if(sel.id==='pickaxe'){
         if(!useEnergy(8))return;
         const tx=Math.floor((player.x+player.facing.x*16)/TILE),ty=Math.floor((player.y+player.facing.y*16)/TILE);
@@ -2746,7 +2788,10 @@ function update(dt) {
   }
   
   // Rigs
-  let th=0;for(const r of rigs){const e=r.update(dt);if(e>0){player.wallet+=e;player.totalEarned+=e;
+  let th=0;for(const r of rigs){let e=r.update(dt);if(e>0){
+    if(hasSatellite)e=Math.ceil(e*1.2); // Satellite: +20% mining
+    if(hasRocket)e=Math.ceil(e*1.5); // Rocket: +50% ALL income
+    player.wallet+=e;player.totalEarned+=e;
     // Only show sat particles for rigs in current view (interior match)
     const rigVisible=interior?(r.interior===interior.type):!r.interior;
     if(rigVisible)satPart(r.x,r.y-10,e);
