@@ -561,6 +561,7 @@ let tutorialStep = 0;
 let tutorialDone = false;
 let showObjectives = false;
 let showSkills = false;
+let showJournal = false;
 let minimapOpen = true;
 let interior = null; // null = overworld, or {type, map, w, h, furniture, doorX, returnX, returnY}
 let doorCooldown = 0; // prevent instant re-entry after exiting
@@ -644,33 +645,157 @@ function completeObjective(id) {
 // ============================================================
 const NPC_QUESTS = {
   'Ruby': [
-    { id:'ruby_1', title:'First Rig', task:'Place a mining rig', check:()=>objectives.find(o=>o.id==='place_rig')?.done, reward:{sats:500,items:[{id:'copper_ore',qty:3}]}, dialogue:'Thanks for getting that rig running! Here\'s some copper I had lying around.' },
-    { id:'ruby_2', title:'Power Up', task:'Place a solar panel', check:()=>objectives.find(o=>o.id==='place_solar')?.done, reward:{sats:1000,items:[{id:'battery',qty:1}]}, dialogue:'Solar is the future! Take this battery — you\'ll need it for nighttime.' },
-    { id:'ruby_3', title:'Upgrade Path', task:'Buy a GPU rig', check:()=>objectives.find(o=>o.id==='buy_gpu')?.done, reward:{sats:3000}, dialogue:'Now you\'re mining for real. Your uncle would be proud.' },
+    { id:'ruby_1', title:'Keeping the Lights On', task:'Place a mining rig',
+      intro:'"Your uncle\'s old rigs are barely holding together. Tell you what — place a new one and I\'ll throw in some copper. I owe Toshi that much."',
+      check:()=>objectives.find(o=>o.id==='place_rig')?.done,
+      reward:{sats:500,items:[{id:'copper_ore',qty:3}]},
+      dialogue:'"That hum... I haven\'t heard a new rig spin up since Toshi was here. He\'d be smiling right now. Here — copper from his last order."',
+      lore:'Ruby was your uncle\'s first friend in the valley. She sold him his first CPU miner in 2019.' },
+    { id:'ruby_2', title:'Off the Grid', task:'Place a solar panel',
+      intro:'"Listen, grid power costs are killing everyone. Your uncle always dreamed of going fully off-grid. Solar panels — that\'s the way. I\'ve got one ready for you."',
+      check:()=>objectives.find(o=>o.id==='place_solar')?.done,
+      reward:{sats:1000,items:[{id:'battery',qty:1}]},
+      dialogue:'"Off-grid mining! That\'s REAL proof of work. Your uncle tried for years — never quite got there. Take this battery. Finish what he started."',
+      lore:'Ruby believes in energy independence. She\'s been solar-powered since before it was cool.' },
+    { id:'ruby_3', title:'Serious Mining', task:'Buy a GPU rig',
+      intro:'"CPU mining was fine when this valley was young. But if you want to actually stack sats, you need real hashrate. A GPU rig. I\'ve got the parts."',
+      check:()=>objectives.find(o=>o.id==='buy_gpu')?.done,
+      reward:{sats:3000},
+      dialogue:'"Now you\'re playing with real fire. Your uncle\'s last words to me were: \'Make sure whoever inherits this place upgrades the hashrate.\' Done."',
+      lore:'The first GPU rig in the valley was built by Ruby herself — cobbled together from parts she found in the abandoned data center.' },
+    { id:'ruby_4', title:'The Beast Awakens', task:'Place an ASIC S21',
+      intro:'"There\'s one more level. The ASIC. Industrial grade. Your uncle ordered one before he... well. It arrived last week. Want to finish what he started?"',
+      check:()=>rigs.some(r=>r.tier===2),
+      reward:{sats:10000,items:[{id:'advanced_rig_part',qty:2}]},
+      dialogue:'"That sound. That beautiful, terrifying sound. You\'re now running more hashrate than this entire valley did three years ago. Toshi would weep."' },
   ],
   'Hodl Hannah': [
-    { id:'hannah_1', title:'Green Thumb', task:'Plant 3 crops', check:()=>crops.length>=3||skills.farming.level>=2, reward:{sats:300,items:[{id:'corn_seed',qty:5}]}, dialogue:'The garden is coming alive! Here, try planting some corn.' },
-    { id:'hannah_2', title:'Patient Farmer', task:'Harvest any crop', check:()=>skills.farming.level>=3, reward:{sats:800,items:[{id:'pumpkin_seed',qty:3}]}, dialogue:'Patience pays off — just like hodling. Try these pumpkin seeds!' },
-    { id:'hannah_3', title:'Diamond Hands', task:'Earn 10,000 sats without spending', check:()=>player.wallet>=10000, reward:{sats:2000}, dialogue:'You held through the dip! That\'s real diamond hands energy.' },
+    { id:'hannah_1', title:'Seeds of the Future', task:'Plant 3 crops',
+      intro:'"Your uncle\'s garden was the envy of the valley. He said farming and Bitcoin were the same thing — plant seeds, be patient, reap rewards. Let\'s start with 3 crops."',
+      check:()=>crops.length>=3||skills.farming.level>=2,
+      reward:{sats:300,items:[{id:'corn_seed',qty:5}]},
+      dialogue:'"See? Patience. The soil doesn\'t care about your timeline. It grows when it grows. Just like sats. Here — corn seeds. Toshi\'s favorite."',
+      lore:'Hannah learned to garden from your uncle. He told her it was the best metaphor for low time preference.' },
+    { id:'hannah_2', title:'Harvest Moon', task:'Reach farming level 3',
+      intro:'"Growing things is one thing. Understanding the CYCLE is another. Tend your garden through at least one full season. Feel the rhythm."',
+      check:()=>skills.farming.level>=3,
+      reward:{sats:800,items:[{id:'pumpkin_seed',qty:3}]},
+      dialogue:'"You felt it, didn\'t you? The rhythm. Plant, tend, harvest, rest, repeat. It\'s the same cycle as the market. Same cycle as life. Here — pumpkin seeds. Save them for Capitulation phase."',
+      lore:'Hannah only plants during Accumulation. She says the soil "feels different" during bear markets.' },
+    { id:'hannah_3', title:'Diamond Hands', task:'Hold 10,000 sats',
+      intro:'"Anyone can earn sats. The real test is holding them. When the market crashes, when the FUD hits, when Larry tells you to trade — can you hold? Stack to 10K and DON\'T spend."',
+      check:()=>player.wallet>=10000,
+      reward:{sats:2000},
+      dialogue:'"You held. Through the noise, through the fear, you held. Your uncle did the same in 2018. Lost 80% of his stack\'s dollar value. Never sold a single sat. That\'s who you come from."',
+      lore:'Hannah has never sold a sat. Not once. Not even when bread cost 500 FiatBucks.' },
+    { id:'hannah_4', title:'The Toshi Way', task:'Own a cow, goat, and grow crops',
+      intro:'"Your uncle believed in total self-sufficiency. Food. Power. Money. All sovereign. Build a real homestead — animals AND crops. The full Toshi way."',
+      check:()=>animals.some(a=>a.type==='cow')&&animals.some(a=>a.type==='goat')&&crops.length>=5,
+      reward:{sats:5000,items:[{id:'feed',qty:30}]},
+      dialogue:'"Look at this place. Animals, gardens, rigs humming. Your uncle drew this exact picture on a napkin once. Said \'someday.\' You built his someday."' },
   ],
   'The Hermit': [
-    { id:'hermit_1', title:'Cypherpunk\'s Test', task:'Find 3 seed phrase words', check:()=>foundWords.length>=3, reward:{sats:2000,items:[{id:'silicon',qty:5}]}, dialogue:'You\'re uncovering the truth. Here — silicon, for when you need to build something important.' },
-    { id:'hermit_2', title:'Verify Everything', task:'Find 10 seed phrase words', check:()=>foundWords.length>=10, reward:{sats:10000}, dialogue:'You\'re halfway there. Your uncle would say: "Don\'t trust. Verify." You\'re verifying.' },
-    { id:'hermit_3', title:'The Complete Seed', task:'Find all 24 seed phrase words', check:()=>foundWords.length>=24, reward:{sats:100000}, dialogue:'You found them all. The seed is complete. Now you understand what your uncle built.' },
+    { id:'hermit_1', title:'The First Word', task:'Find 3 seed phrase words',
+      intro:'"So you found one of Toshi\'s words. He hid 24 across this valley. Each one is a piece of history — not just his history, but Bitcoin\'s. Find 3 more. Start in the forest."',
+      check:()=>foundWords.length>=3,
+      reward:{sats:2000,items:[{id:'silicon',qty:5}]},
+      dialogue:'"Three words. Three moments in time. The genesis, the first transaction, the first purchase. You\'re walking through history. Here — silicon. You\'ll need it later."',
+      lore:'The Hermit claims he was present for the first Bitcoin transaction. He won\'t say more.' },
+    { id:'hermit_2', title:'Deeper Truth', task:'Find 10 seed phrase words',
+      intro:'"You\'re deep enough now to hear the real story. The forks, the wars, the betrayals. Bitcoin survived them all. Find 10 words total."',
+      check:()=>foundWords.length>=10,
+      reward:{sats:10000},
+      dialogue:'"Mt. Gox. The DAO. The Block Size Wars. Each crisis made Bitcoin stronger. Each word you find is a scar that healed into armor. Your uncle understood this."',
+      lore:'During the Block Size Wars, the Hermit ran a UASF node from this very forest.' },
+    { id:'hermit_3', title:'The Complete Seed', task:'Find all 24 seed phrase words',
+      intro:'"You\'re close. The final words are hidden in the hardest places — the mountain peaks, the deep forest, the forgotten corners. Your uncle put them there because only someone truly committed would find them all."',
+      check:()=>foundWords.length>=24,
+      reward:{sats:100000},
+      dialogue:'"You did it. 24 words. A complete seed. But it doesn\'t unlock a wallet full of Bitcoin. It unlocks something more valuable — understanding. Your uncle\'s gift wasn\'t money. It was knowledge. The knowledge that sound money changes everything."',
+      lore:'The complete seed phrase spells out a message from Uncle Toshi. Read the first letter of each word.' },
   ],
   'Leverage Larry': [
-    { id:'larry_1', title:'Stack to 5K', task:'Have 5,000 sats', check:()=>player.wallet>=5000, reward:{sats:500}, dialogue:'5K?! I lost that in a trade last Tuesday. But congrats I guess.' },
-    { id:'larry_2', title:'ASIC Dreams', task:'Place an ASIC S21', check:()=>rigs.some(r=>r.tier===2), reward:{sats:5000}, dialogue:'An ASIC! Now THAT\'S what I\'m talking about. Hash rate goes brrrr!' },
+    { id:'larry_1', title:'Baby Steps', task:'Have 5,000 sats',
+      intro:'"Hey, newbie. You know what separates the winners from the losers? Having a stack. You don\'t even have 5K yet? That\'s embarrassing. Stack up."',
+      check:()=>player.wallet>=5000,
+      reward:{sats:500},
+      dialogue:'"5K! That\'s... that\'s actually more than I have right now. Don\'t tell anyone. Here\'s 500 sats — I\'ll get it back on my next trade. Probably."',
+      lore:'Larry has been liquidated 47 times. He keeps a tally on his wall.' },
+    { id:'larry_2', title:'Hash Rate Hero', task:'Place an ASIC S21',
+      intro:'"Bro. BRRROOO. You need an ASIC. The S21. Once you feel that hashrate, you\'ll understand why I took out a loan to buy three. Well, before I got liquidated."',
+      check:()=>rigs.some(r=>r.tier===2),
+      reward:{sats:5000},
+      dialogue:'"THAT\'S what I\'m talking about! Feel that power! 50 TH/s! I had three of these once. For about 4 hours. Then the margin call came. But YOU — you BOUGHT yours. Respect."' },
+    { id:'larry_3', title:'To the Moon', task:'Earn 100,000 total sats',
+      intro:'"OK real talk. I need to know something. Can you actually make it? Not trade it, not leverage it — MAKE it. Earn 100K total. Prove this farming thing works."',
+      check:()=>player.totalEarned>=100000,
+      reward:{sats:15000},
+      dialogue:'"100K earned. Not borrowed. Not leveraged. Earned. You know what, maybe... maybe your uncle was right. Maybe slow and steady actually works. Don\'t quote me on that."',
+      lore:'This is the first time Larry has admitted that maybe HODLing beats trading.' },
   ],
   'Mayor Keynesian': [
-    { id:'mayor_1', title:'Village Duty', task:'Upgrade citadel to Cabin', check:()=>citadelTier>=1, reward:{sats:1000}, dialogue:'Good, good. The village needs strong homesteads. Here\'s a... stimulus payment.' },
-    { id:'mayor_2', title:'Community Builder', task:'Upgrade citadel to Compound', check:()=>citadelTier>=3, reward:{sats:10000}, dialogue:'Impressive compound! Maybe you should run for mayor. On second thought...' },
+    { id:'mayor_1', title:'Civic Duty', task:'Upgrade citadel to Cabin',
+      intro:'"Ah, the new homesteader. Listen, this village needs strong properties. Upgrade that shack of yours and I\'ll consider it... a civic contribution. There may be a stimulus in it for you."',
+      check:()=>citadelTier>=1,
+      reward:{sats:1000},
+      dialogue:'"A proper cabin! See, government incentives work. Here\'s your stimulus payment. Please don\'t think too hard about where the money comes from."',
+      lore:'The Mayor prints FiatBucks from his office printer. He calls it "quantitative easing."' },
+    { id:'mayor_2', title:'Pillar of the Community', task:'Upgrade to Compound',
+      intro:'"Your homestead is becoming quite impressive. A Compound would really anchor this end of the village. I\'ll authorize a... substantial grant."',
+      check:()=>citadelTier>=3,
+      reward:{sats:10000},
+      dialogue:'"Magnificent! A true compound. Between you and me — the village finances are... flexible. But your growth justifies the expenditure. Probably."',
+      lore:'The Mayor\'s budget has been running a deficit since 2020. He funds it by taxing newcomers.' },
+    { id:'mayor_3', title:'The Bitcoin Question', task:'Earn 50,000 sats',
+      intro:'"I\'ve been watching your... Bitcoin operation. I have questions. Show me it actually works. Earn 50,000 sats and maybe I\'ll reconsider my position on digital currencies."',
+      check:()=>player.totalEarned>=50000,
+      reward:{sats:8000},
+      dialogue:'"50,000 sats. No bailouts. No stimulus. No printer. Just... work. Hmm. That\'s troubling. For my worldview, I mean. Don\'t tell anyone I said this, but — maybe the hermit isn\'t completely crazy."',
+      lore:'This is the beginning of the Mayor\'s redemption arc. He\'s starting to question fiat.' },
   ],
   'Farmer Pete': [
-    { id:'pete_1', title:'First Harvest', task:'Sell a crop at the market', check:()=>skills.farming.level>=2, reward:{sats:200,items:[{id:'tomato_seed',qty:5}]}, dialogue:'Fresh produce! Here\'s some tomato seeds — diversify your crops.' },
-    { id:'pete_2', title:'Rancher', task:'Own 3 animals', check:()=>animals.length>=3, reward:{sats:1500,items:[{id:'feed',qty:20}]}, dialogue:'A real rancher now! Take this feed — your animals need it.' },
+    { id:'pete_1', title:'First Sale', task:'Reach farming level 2',
+      intro:'"Nothing better than fresh produce grown with honest work. Sell some crops at my market — I\'ll pay fair price. In sats, of course."',
+      check:()=>skills.farming.level>=2,
+      reward:{sats:200,items:[{id:'tomato_seed',qty:5}]},
+      dialogue:'"Farm to table, no middlemen, paid in sound money. That\'s how your uncle wanted it. Here — tomato seeds. His secret variety."',
+      lore:'Pete and Toshi built the farmer\'s market together. Pete still saves Toshi\'s stall spot.' },
+    { id:'pete_2', title:'The Rancher\'s Way', task:'Own 3 animals',
+      intro:'"A real homestead needs animals. Chickens for eggs. Goats for milk. Cows for... well, you know. Get 3 animals going."',
+      check:()=>animals.length>=3,
+      reward:{sats:1500,items:[{id:'feed',qty:20}]},
+      dialogue:'"Now THAT\'S a proper ranch. Your uncle always said: \'Beef, not seed oils.\' He was ahead of his time on a lot of things."',
+      lore:'Pete is a carnivore. He hasn\'t eaten a seed oil in 6 years.' },
+    { id:'pete_3', title:'The Circular Economy', task:'Craft cheese and sell it',
+      intro:'"Here\'s the beautiful thing about this valley. The goat gives milk. You craft cheese. You sell it at my market. The sats go back into the valley. Circular economy, no fiat needed."',
+      check:()=>skills.engineering.level>=2&&skills.farming.level>=4,
+      reward:{sats:3000,items:[{id:'corn_seed',qty:10}]},
+      dialogue:'"Milk to cheese to sats to seeds to crops to feed to milk. The circle is complete. Your uncle drew this exact diagram. Said it was better than any economics textbook."' },
+  ],
+  'Saylor': [
+    { id:'saylor_1', title:'Corporate Strategy', task:'Own 5 mining rigs',
+      intro:'"In my previous life, I ran a company. We put every dollar into Bitcoin. They called us crazy. Now I\'m here, and I\'ll tell you the same thing: stack hash rate."',
+      check:()=>rigs.filter(r=>!r.interior).length+rigs.filter(r=>r.interior).length>=5,
+      reward:{sats:5000},
+      dialogue:'"Five rigs. That\'s a mining operation. Not a hobby — an OPERATION. This is how nations are built. One hash at a time."' },
+    { id:'saylor_2', title:'Conviction', task:'Survive 3 market cycles',
+      intro:'"Anyone can mine during a bull market. The real test is mining through Capitulation. When everyone says it\'s dead. When the hashrate drops. Do you keep mining?"',
+      check:()=>econ.cycle>=3,
+      reward:{sats:20000},
+      dialogue:'"Three cycles. You mined through crashes, through FUD, through China banning Bitcoin again. That\'s not strategy — that\'s conviction. There is no second best."' },
+  ],
+  'Pizza Pete': [
+    { id:'pizza_1', title:'The Pizza Legacy', task:'Catch a fish',
+      intro:'"Everyone knows me for the pizza thing. But you know what no one talks about? I was also a pretty good fisherman. Go catch something. I\'ll tell you a story."',
+      check:()=>hasItem('salmon')||hasItem('trout')||hasItem('bitcoin_fish'),
+      reward:{sats:1000},
+      dialogue:'"Nice catch! OK here\'s my story. The night I bought those pizzas, I almost went fishing instead. If I had... history would be different. Sometimes the path not taken matters most."',
+      lore:'Pizza Pete still orders two pizzas every May 22nd. He pays in sats now.' },
   ],
 };
+
+// Quest Journal — tracks completed quest stories
+let questJournal = []; // [{id, npcName, title, lore, completedDay}]
 
 let questProgress = {}; // {npcName: currentQuestIndex}
 
@@ -689,6 +814,8 @@ function checkQuestCompletion(npcName) {
     // Complete quest — give rewards
     if (quest.reward.sats) { player.wallet += quest.reward.sats; player.totalEarned += quest.reward.sats; }
     if (quest.reward.items) { quest.reward.items.forEach(i => addItem(i.id, i.qty)); }
+    // Record in journal
+    questJournal.push({ id:quest.id, npcName, title:quest.title, lore:quest.lore||'', completedDay:time.day });
     questProgress[npcName] = (questProgress[npcName] || 0) + 1;
     notify(`🎉 Quest complete: ${quest.title}! +${fmt(quest.reward.sats||0)} sats`, 5, true);
     sfx.block();
@@ -1562,6 +1689,7 @@ const CONTROLS_LIST = [
   ['O', 'Quest log'],
   ['K', 'Skills overview'],
   ['N', 'Toggle minimap'],
+  ['J', 'Quest journal'],
   ['M', 'Toggle music'],
   ['P', 'Save game'],
   ['L', 'Load game'],
@@ -1690,7 +1818,7 @@ const cam = {x:0,y:0};
 // ============================================================
 // SAVE / LOAD
 // ============================================================
-function saveGame(){try{localStorage.setItem('sv_save',JSON.stringify({v:8,p:{x:player.x,y:player.y,w:player.wallet,te:player.totalEarned,e:player.energy},inv:inv.map(s=>s?{id:s.id,q:s.qty}:null),ss:selSlot,rigs:rigs.map(r=>({x:r.x,y:r.y,t:r.tier,p:r.powered,tp:r.temp,d:r.dur,m:r.mined,int:r.interior||null})),placed:placed.map(i=>({x:i.x,y:i.y,t:i.type})),fences:[...fences],econ:{...econ},time:{...time},pwr:{p:pwr.panels,b:pwr.batts},obj:objectives.map(o=>o.done),tut:tutorialDone,skills,crops:crops.map(c=>({x:c.x,y:c.y,type:c.type,dayAge:c.dayAge,stage:c.stage})),rels:relationships,citadelTier,animals:animals.map(a=>({x:a.x,y:a.y,t:a.type,hx:a.homeX,hy:a.homeY,hp:a.happiness,fed:a.fed,dsp:a.daysSinceProd,pr:a.prodReady,dir:a.dir})),weather:{c:weather.current},chest:chestInv.map(s=>s?{id:s.id,q:s.qty}:null),fw:foundWords,qp:questProgress}));notify('💾 Saved!',2);sfx.buy();}catch(e){notify('❌ Save failed!',2);}}
+function saveGame(){try{localStorage.setItem('sv_save',JSON.stringify({v:8,p:{x:player.x,y:player.y,w:player.wallet,te:player.totalEarned,e:player.energy},inv:inv.map(s=>s?{id:s.id,q:s.qty}:null),ss:selSlot,rigs:rigs.map(r=>({x:r.x,y:r.y,t:r.tier,p:r.powered,tp:r.temp,d:r.dur,m:r.mined,int:r.interior||null})),placed:placed.map(i=>({x:i.x,y:i.y,t:i.type})),fences:[...fences],econ:{...econ},time:{...time},pwr:{p:pwr.panels,b:pwr.batts},obj:objectives.map(o=>o.done),tut:tutorialDone,skills,crops:crops.map(c=>({x:c.x,y:c.y,type:c.type,dayAge:c.dayAge,stage:c.stage})),rels:relationships,citadelTier,animals:animals.map(a=>({x:a.x,y:a.y,t:a.type,hx:a.homeX,hy:a.homeY,hp:a.happiness,fed:a.fed,dsp:a.daysSinceProd,pr:a.prodReady,dir:a.dir})),weather:{c:weather.current},chest:chestInv.map(s=>s?{id:s.id,q:s.qty}:null),fw:foundWords,qp:questProgress,qj:questJournal}));notify('💾 Saved!',2);sfx.buy();}catch(e){notify('❌ Save failed!',2);}}
 function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!d)return notify('No save found!',2),false;player.x=d.p.x;player.y=d.p.y;player.wallet=d.p.w;player.totalEarned=d.p.te;player.energy=d.p.e||100;inv.length=0;d.inv.forEach(s=>inv.push(s?{id:s.id,qty:s.q}:null));selSlot=d.ss||0;rigs.length=0;d.rigs.forEach(r=>{const ri=new Rig(r.x,r.y,r.t);ri.powered=r.p;ri.temp=r.tp;ri.dur=r.d;ri.mined=r.m;ri.interior=r.int||null;rigs.push(ri);});placed.length=0;(d.placed||[]).forEach(i=>placed.push(i));Object.assign(econ,d.econ);Object.assign(time,d.time);pwr.panels=d.pwr?.p||[];pwr.batts=d.pwr?.b||[];if(d.obj)d.obj.forEach((done,i)=>{if(objectives[i])objectives[i].done=done;});tutorialDone=d.tut||false;
     if(d.skills)Object.assign(skills,d.skills);
     crops.length=0;if(d.crops)d.crops.forEach(c=>crops.push(c));
@@ -1701,6 +1829,7 @@ function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!
     chestInv.length=0;(d.chest||[]).forEach(s=>chestInv.push(s?{id:s.id,qty:s.q}:null));
     foundWords=(d.fw||[]);
     questProgress=(d.qp||{});
+    questJournal=(d.qj||[]);
     fences.length=0;(d.fences||[]).forEach(f=>fences.push(f));
     gameState='playing';notify('📂 Loaded!',2);sfx.buy();return true;}catch(e){notify('❌ Load failed!',2);return false;}}
 
@@ -2032,6 +2161,7 @@ function update(dt) {
   // ---- MENU INPUTS ----
   if(jp['o']) showObjectives = !showObjectives;
   if(jp['k']) showSkills = !showSkills;
+  if(jp['j']) showJournal = !showJournal;
   if(jp['?']) showControls = !showControls;
   if(jp['n']) minimapOpen = !minimapOpen;
   if(jp['m']) toggleMusic();
@@ -2070,7 +2200,7 @@ function update(dt) {
     }else if(shopOpen){shopOpen=false;sfx.menuClose();}
   }
   if(jp['i']||jp['tab']){if(!shopOpen){invOpen=!invOpen;invOpen?sfx.menuOpen():sfx.menuClose();}}
-  if(jp['escape']){if(pauseOpen){pauseOpen=false;sfx.menuClose();}else if(craftOpen){craftOpen=false;sfx.menuClose();}else if(chestOpen){chestOpen=false;sfx.menuClose();}else if(shopOpen){shopOpen=false;sfx.menuClose();}else if(citadelMenuOpen){citadelMenuOpen=false;sfx.menuClose();}else if(invOpen){invOpen=false;sfx.menuClose();}else if(dlg){if(!dlg.done){dlg.displayedChars=dlg.fullText.length;dlg.done=true;}else{dlg=null;}}else if(showObjectives)showObjectives=false;else if(showControls)showControls=false;else if(showSkills)showSkills=false;else{pauseOpen=true;pauseCur=0;sfx.menuOpen();}}
+  if(jp['escape']){if(pauseOpen){pauseOpen=false;sfx.menuClose();}else if(craftOpen){craftOpen=false;sfx.menuClose();}else if(chestOpen){chestOpen=false;sfx.menuClose();}else if(shopOpen){shopOpen=false;sfx.menuClose();}else if(citadelMenuOpen){citadelMenuOpen=false;sfx.menuClose();}else if(invOpen){invOpen=false;sfx.menuClose();}else if(dlg){if(!dlg.done){dlg.displayedChars=dlg.fullText.length;dlg.done=true;}else{dlg=null;}}else if(showObjectives)showObjectives=false;else if(showControls)showControls=false;else if(showSkills)showSkills=false;else if(showJournal)showJournal=false;else{pauseOpen=true;pauseCur=0;sfx.menuOpen();}}
   if(jp['p'])saveGame();if(jp['l'])loadGame();
   for(let n=0;n<=9;n++)if(jp[n.toString()])selSlot=n===0?9:n-1;
   
@@ -2297,11 +2427,16 @@ function update(dt) {
               const completedQ=q[idx];
               dlg={name:n.name,text:completedQ.dialogue,role:n.role,fullText:completedQ.dialogue,displayedChars:0,done:false};dlgCharTimer=0;sfx.interact();
             } else {
-              // Show quest task or regular dialogue
               const activeQ=getActiveQuest(n.name);
               let _nd2;
               if(activeQ){
-                _nd2=`📜 Quest: ${activeQ.title}\n"${activeQ.task}"\n\nReward: ${fmt(activeQ.reward.sats||0)} sats`;
+                // Show intro or progress dialogue
+                const isNew = !questJournal.some(j=>j.id===activeQ.id) && !(questProgress[n.name]>0 && NPC_QUESTS[n.name][(questProgress[n.name]||0)-1]?.id===activeQ.id);
+                if(activeQ.intro && isNew){
+                  _nd2 = activeQ.intro + '\n\n📜 Quest: ' + activeQ.title + '\nTask: ' + activeQ.task + '\nReward: ' + fmt(activeQ.reward.sats||0) + ' sats';
+                } else {
+                  _nd2 = '📜 ' + activeQ.title + ': ' + activeQ.task + (activeQ.check() ? '\n\n✅ Ready to complete!' : '\n\n⏳ In progress...');
+                }
               } else {
                 _nd2=n.dlg[Math.floor(Math.random()*n.dlg.length)];
               }
@@ -4652,6 +4787,7 @@ function drawHUD(){
   // Shop
   if(shopOpen) drawShop();
   if(craftOpen) drawCraftMenu();
+  if(showJournal) drawJournal();
   
   // Fishing minigame UI
   if(fishing&&fishing.biting&&!fishing.caught){
@@ -4859,6 +4995,62 @@ function drawCitadelMenu(){
   }
   ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;ctx.textAlign='center';
   ctx.fillText('[C] or [Esc] Close',x+w/2,y+h-10);
+}
+
+function drawJournal(){
+  const w=520,h=480,x=(canvas.width-w)/2,y=(canvas.height-h)/2;
+  panel(x,y,w,h);
+  ctx.fillStyle=C.hud;ctx.font=`bold 20px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText('📖 Quest Journal',x+w/2,y+28);
+  
+  // Active quests section
+  ctx.fillStyle=C.orange;ctx.font=`bold 14px ${FONT}`;ctx.textAlign='left';
+  ctx.fillText('Active Quests',x+16,y+52);
+  let cy=y+68;
+  let hasActive=false;
+  for(const npcName in NPC_QUESTS){
+    const q=getActiveQuest(npcName);
+    if(q){
+      hasActive=true;
+      const ready=q.check();
+      ctx.fillStyle=ready?C.green:'#CCC';ctx.font=`bold 13px ${FONT}`;ctx.textAlign='left';
+      ctx.fillText(`${ready?'✅':'⏳'} ${q.title}`,x+24,cy);
+      ctx.fillStyle='#999';ctx.font=`12px ${FONT}`;
+      ctx.fillText(`${npcName} — ${q.task}`,x+24,cy+16);
+      ctx.fillStyle=C.hud;ctx.font=`11px ${FONT}`;ctx.textAlign='right';
+      ctx.fillText(`${fmt(q.reward.sats||0)} sats`,x+w-16,cy);
+      ctx.textAlign='left';
+      cy+=38;
+      if(cy>y+h/2-20) break;
+    }
+  }
+  if(!hasActive){ctx.fillStyle='#666';ctx.font=`13px ${FONT}`;ctx.fillText('No active quests — talk to villagers!',x+24,cy);cy+=24;}
+  
+  // Completed quests section
+  cy+=10;
+  ctx.fillStyle='#888';ctx.font=`bold 14px ${FONT}`;
+  ctx.fillText(`Completed (${questJournal.length})`,x+16,cy);cy+=18;
+  
+  // Show last 6 completed
+  const shown=questJournal.slice(-6).reverse();
+  for(const j of shown){
+    if(cy>y+h-40) break;
+    ctx.fillStyle='#5A8A5A';ctx.font=`bold 12px ${FONT}`;ctx.textAlign='left';
+    ctx.fillText(`✅ ${j.title}`,x+24,cy);
+    ctx.fillStyle='#777';ctx.font=`11px ${FONT}`;
+    ctx.fillText(`${j.npcName} — Day ${j.completedDay}`,x+24,cy+14);
+    if(j.lore){
+      ctx.fillStyle='#998866';ctx.font=`italic 11px ${FONT}`;
+      wrapText(j.lore,x+24,cy+28,w-48,13);
+      cy+=16;
+    }
+    cy+=34;
+  }
+  
+  // Stats
+  ctx.fillStyle=C.gray;ctx.font=`12px ${FONT}`;ctx.textAlign='center';
+  const totalQuests=Object.values(NPC_QUESTS).reduce((s,q)=>s+q.length,0);
+  ctx.fillText(`${questJournal.length}/${totalQuests} quests completed | J or Esc to close`,x+w/2,y+h-12);
 }
 
 function drawCraftMenu(){
