@@ -125,7 +125,7 @@ canvas.addEventListener('click', e => {
     if(!isSolid(tx,ty)&&!rigs.some(r=>Math.abs(r.x-ptx)<TILE&&Math.abs(r.y-pty)<TILE)){
       removeItem(sel.id);rigs.push(new Rig(ptx,pty,it.tier));sfx.place();notify(`⛏️ ${it.name} placed!`,2);completeObjective('place_rig');
     }else{sfx.error();notify("Can't place here!",1.5);}
-  }else if(sel.id==='solar_panel'||sel.id==='battery'||sel.id==='cooling_fan'||sel.id==='chest'||sel.id==='flower_pot'||sel.id==='torch_item'||sel.id==='bitcoin_sign'){
+  }else if(sel.id==='solar_panel'||sel.id==='battery'||sel.id==='cooling_fan'||sel.id==='chest'||sel.id==='flower_pot'||sel.id==='torch_item'||sel.id==='bitcoin_sign'||sel.id==='immersion_tank'||sel.id==='mesh_antenna'||sel.id==='satellite_node'||sel.id==='freedom_monument'||sel.id==='bitcoin_academy'||sel.id==='rocket_to_moon'){
     if(!isSolid(tx,ty)&&!placed.some(i=>Math.abs(i.x-ptx)<TILE&&Math.abs(i.y-pty)<TILE)){
       removeItem(sel.id);placed.push({x:ptx,y:pty,type:sel.id});
       if(sel.id==='solar_panel')pwr.panels.push({x:ptx,y:pty});
@@ -2705,7 +2705,7 @@ function update(dt) {
           const pd=Math.min(Math.hypot(placed[i].x-ix,placed[i].y-iy),Math.hypot(placed[i].x-player.x,placed[i].y-player.y));
           if(pd<pickRange){
             const p=placed[i];
-            const itemMap={solar_panel:'solar_panel',battery:'battery',cooling_fan:'cooling_fan',chest:'chest',flower_pot:'flower_pot',torch_item:'torch_item',bitcoin_sign:'bitcoin_sign'};
+            const itemMap={solar_panel:'solar_panel',battery:'battery',cooling_fan:'cooling_fan',chest:'chest',flower_pot:'flower_pot',torch_item:'torch_item',bitcoin_sign:'bitcoin_sign',immersion_tank:'immersion_tank',mesh_antenna:'mesh_antenna',satellite_node:'satellite_node',freedom_monument:'freedom_monument',bitcoin_academy:'bitcoin_academy',rocket_to_moon:'rocket_to_moon'};
             if(itemMap[p.type]){addItem(itemMap[p.type]);notify(`⚒️ Picked up ${p.type.replace('_',' ')}`,2);}
             // Remove from power arrays too
             if(p.type==='solar_panel') pwr.panels=pwr.panels.filter(pp=>pp.x!==p.x||pp.y!==p.y);
@@ -2749,8 +2749,8 @@ function update(dt) {
           removeItem('fence_post');fences.push({x:tx,y:ty});sfx.place();notify('🪵 Fence placed!',1.5);
         }else{sfx.error();notify("Can't place fence here!",1.5);}
       }
-      // DECORATION placement (flower_pot, torch_item, bitcoin_sign)
-      else if(sel.id==='flower_pot'||sel.id==='torch_item'||sel.id==='bitcoin_sign'){
+      // DECORATION placement (all placeable deco/upgrade items)
+      else if(sel.id==='flower_pot'||sel.id==='torch_item'||sel.id==='bitcoin_sign'||sel.id==='immersion_tank'||sel.id==='mesh_antenna'||sel.id==='satellite_node'||sel.id==='freedom_monument'||sel.id==='bitcoin_academy'||sel.id==='rocket_to_moon'){
         if(!isSolid(ptx,pty)&&!placed.some(i=>Math.abs(i.x-px)<TILE&&Math.abs(i.y-py)<TILE)){
           removeItem(sel.id);placed.push({x:px,y:py,type:sel.id});sfx.place();notify(`${it.icon} ${it.name} placed!`,1.5);
         }else{sfx.error();notify("Can't place here!",1.5);}
@@ -4563,16 +4563,16 @@ function drawNPC(n){
       // Seed fragment hint — orange puzzle
       ctx.font=`16px serif`;ctx.textAlign='center';
       ctx.fillText('🧩',sx,markerY);
-    } else if(getActiveQuest(n.name)){
+    } else if(NPC_QUESTS[n.name]){
       // Has active quest — orange quest marker
       const aq=getActiveQuest(n.name);
-      const qReady=aq.check();
+      if(aq){const qReady=aq.check();
       ctx.fillStyle=qReady?'#44FF44':'#FF8800'; // green=ready, orange=in progress
       ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=3;
       ctx.font=`bold 18px ${FONT}`;ctx.textAlign='center';
       ctx.fillText(qReady?'✅':'❗',sx,markerY);
       ctx.shadowBlur=0;
-    } else if(rel.talked===false){
+    }} else if(rel.talked===false){
       // Hasn't talked today — yellow !
       ctx.fillStyle='#FFD700';
       ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=3;
