@@ -689,7 +689,8 @@ function enterMine(){
 function exitMine(){
   startTransition('fadeOut',0.4,()=>{
     mineFloor=null;combat=null;
-    player.x=mineReturnX;player.y=mineReturnY;
+    // Place player south of mine entrance (not behind walls)
+    player.x=50*TILE+8;player.y=8*TILE+8;
     cam.x=player.x*SCALE-canvas.width/2;
     cam.y=player.y*SCALE-canvas.height/2;
     startTransition('fadeIn',0.4,null);
@@ -2464,6 +2465,15 @@ function update(dt) {
   if(jp['m']) toggleMusic();
   if(jp['t']){craftOpen=!craftOpen;craftOpen?sfx.menuOpen():sfx.menuClose();craftCur=0;}
   if(jp['c']){if(isNearHome()){citadelMenuOpen=!citadelMenuOpen;citadelMenuOpen?sfx.menuOpen():sfx.menuClose();}else{notify('Get near your home to open the Citadel menu [C]',2);sfx.error();}}
+  // X key: use stairs in mines / exit mine
+  if(jp['x']&&mineFloor&&!combat){
+    const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
+    if(mineFloor.stairsUp&&ptx===mineFloor.stairsUp.x&&pty===mineFloor.stairsUp.y){
+      if(mineLevel===0){exitMine();}else{mineLevel--;startTransition('fadeOut',0.3,()=>{mineFloor=generateMineFloor(mineLevel);const sp=mineFloor.stairsDown||mineFloor.stairsUp;player.x=sp.x*TILE+8;player.y=sp.y*TILE+8;cam.x=player.x*SCALE-canvas.width/2;cam.y=player.y*SCALE-canvas.height/2;startTransition('fadeIn',0.3,null);notify('⬆️ Level '+(mineLevel+1),2);});}
+    } else if(mineFloor.stairsDown&&ptx===mineFloor.stairsDown.x&&pty===mineFloor.stairsDown.y){
+      goDeeper();
+    } else { notify('Stand on stairs to use them [X]',1.5); }
+  }
   if(jp['h'] && !shopOpen && !invOpen) {
     // Harvest nearest crop
     const ix = player.x + player.facing.x * 16, iy = player.y + player.facing.y * 16;
@@ -2697,19 +2707,9 @@ function update(dt) {
     else if(!interior&&!mineFloor&&decor.find(d=>d.type==='mine_entrance'&&Math.hypot(d.x*TILE+8-player.x,d.y*TILE+8-player.y)<TILE*2)){
       enterMine();for(const k in jp)jp[k]=false;return;
     }
-    // Mine navigation — stairs + attack
+    // Mine: attack nearest enemy in range (action combat — E key)
     else if(mineFloor){
-      const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
-      // Exit / go up
-      if(mineFloor.stairsUp&&Math.abs(ptx-mineFloor.stairsUp.x)<=1&&Math.abs(pty-mineFloor.stairsUp.y)<=1){
-        if(mineLevel===0){exitMine();}else{mineLevel--;startTransition('fadeOut',0.3,()=>{mineFloor=generateMineFloor(mineLevel);player.x=(mineFloor.stairsDown||mineFloor.stairsUp).x*TILE+8;player.y=(mineFloor.stairsDown||mineFloor.stairsUp).y*TILE+8;cam.x=player.x*SCALE-canvas.width/2;cam.y=player.y*SCALE-canvas.height/2;startTransition('fadeIn',0.3,null);notify('⬆️ Level '+(mineLevel+1),2);});}
-        for(const k in jp)jp[k]=false;return;
-      }
-      // Go deeper
-      if(mineFloor.stairsDown&&Math.abs(ptx-mineFloor.stairsDown.x)<=1&&Math.abs(pty-mineFloor.stairsDown.y)<=1){
-        goDeeper();for(const k in jp)jp[k]=false;return;
-      }
-      // Attack nearest enemy in range (action combat)
+      // Attack nearest enemy in range
       for(const en of mineFloor.enemies){
         if(en.alive&&Math.hypot(en.x*TILE+8-player.x,en.y*TILE+8-player.y)<TILE*2){
           const info=MINE_ENEMIES[en.type];
@@ -5917,12 +5917,12 @@ function drawMine(){
   if(f.stairsUp){const sx=f.stairsUp.x*ST-cam.x,sy=f.stairsUp.y*ST-cam.y;
     ctx.fillStyle='#4A4A55';ctx.fillRect(sx+4,sy+4,ST-8,ST-8);
     ctx.fillStyle=C.green;ctx.font=`bold 16px ${FONT}`;ctx.textAlign='center';ctx.fillText('⬆️',sx+ST/2,sy+ST/2+5);
-    ctx.fillStyle='#AAA';ctx.font=`10px ${FONT}`;ctx.fillText(mineLevel===0?'EXIT':'UP',sx+ST/2,sy+ST-4);
+    ctx.fillStyle='#AAA';ctx.font=`10px ${FONT}`;ctx.fillText(mineLevel===0?'[X] EXIT':'[X] UP',sx+ST/2,sy+ST-4);
   }
   if(f.stairsDown){const sx=f.stairsDown.x*ST-cam.x,sy=f.stairsDown.y*ST-cam.y;
     ctx.fillStyle='#2A2A35';ctx.fillRect(sx+4,sy+4,ST-8,ST-8);
     ctx.fillStyle=C.orange;ctx.font=`bold 16px ${FONT}`;ctx.textAlign='center';ctx.fillText('⬇️',sx+ST/2,sy+ST/2+5);
-    ctx.fillStyle='#AAA';ctx.font=`10px ${FONT}`;ctx.fillText('DEEPER',sx+ST/2,sy+ST-4);
+    ctx.fillStyle='#AAA';ctx.font=`10px ${FONT}`;ctx.fillText('[X] DEEPER',sx+ST/2,sy+ST-4);
   }
   // Draw loot
   for(const l of f.loot){
@@ -5932,18 +5932,68 @@ function drawMine(){
     const it=ITEMS[l.id];
     ctx.font='18px serif';ctx.textAlign='center';ctx.fillText(it?it.icon:'?',sx+ST/2,sy+ST/2+6);
   }
-  // Draw enemies
+  // Draw enemies — styled pixel art
   for(const en of f.enemies){
     if(!en.alive)continue;
     const sx=en.x*ST-cam.x,sy=en.y*ST-cam.y;
     const info=MINE_ENEMIES[en.type];
-    ctx.font='22px serif';ctx.textAlign='center';ctx.fillText(info.icon,sx+ST/2,sy+ST/2+8);
+    const t=performance.now()/1000;
+    const bob=Math.sin(t*3+en.x+en.y)*2;
+    
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(sx+ST/2,sy+ST-2,12,4,0,0,Math.PI*2);ctx.fill();
+    
+    if(en.type==='malware_bot'){
+      // Small robot — grey box with red eye
+      ctx.fillStyle='#556';ctx.fillRect(sx+10,sy+14+bob,ST-20,ST-18);
+      ctx.fillStyle='#445';ctx.fillRect(sx+10,sy+14+bob,ST-20,6);
+      ctx.fillStyle='#F33';ctx.fillRect(sx+ST/2-3,sy+18+bob,6,4); // red eye
+      ctx.fillStyle='#667';ctx.fillRect(sx+12,sy+ST-8,4,6); // leg
+      ctx.fillRect(sx+ST-16,sy+ST-8,4,6);
+      // Antenna
+      ctx.fillStyle='#778';ctx.fillRect(sx+ST/2-1,sy+10+bob,2,6);
+      ctx.fillStyle='#F33';ctx.fillRect(sx+ST/2-2,sy+8+bob,4,4);
+    } else if(en.type==='script_kiddie'){
+      // Hoodie figure — dark purple
+      ctx.fillStyle='#424';ctx.fillRect(sx+8,sy+16+bob,ST-16,ST-20); // body
+      ctx.fillStyle='#535';ctx.fillRect(sx+10,sy+12+bob,ST-20,8); // hood
+      ctx.fillStyle='#0F0';ctx.fillRect(sx+14,sy+18+bob,ST-28,6); // green screen glow on face
+      ctx.fillStyle='#313';ctx.fillRect(sx+12,sy+ST-8,5,6); ctx.fillRect(sx+ST-17,sy+ST-8,5,6); // legs
+    } else if(en.type==='ransomware'){
+      // Skull-shaped threat — dark red
+      ctx.fillStyle='#622';ctx.beginPath();ctx.arc(sx+ST/2,sy+ST/2+bob,14,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#411';ctx.fillRect(sx+12,sy+ST/2+4+bob,ST-24,10); // jaw
+      ctx.fillStyle='#F44';ctx.fillRect(sx+14,sy+ST/2-4+bob,5,5); // left eye
+      ctx.fillRect(sx+ST-19,sy+ST/2-4+bob,5,5);
+      // Lock symbol
+      ctx.fillStyle='#FF0';ctx.fillRect(sx+ST/2-3,sy+ST/2+6+bob,6,5);
+      ctx.fillRect(sx+ST/2-2,sy+ST/2+2+bob,4,5);
+    } else if(en.type==='pool_operator'){
+      // Big boss — tall dark figure with golden crown
+      ctx.fillStyle='#222';ctx.fillRect(sx+6,sy+10+bob,ST-12,ST-12); // body
+      ctx.fillStyle='#333';ctx.fillRect(sx+8,sy+12+bob,ST-16,ST-16);
+      // Face
+      ctx.fillStyle='#F70';ctx.fillRect(sx+12,sy+16+bob,6,4); // left eye
+      ctx.fillRect(sx+ST-18,sy+16+bob,6,4);
+      ctx.fillStyle='#F00';ctx.fillRect(sx+14,sy+24+bob,ST-28,3); // mouth
+      // Crown
+      ctx.fillStyle='#FFD700';
+      ctx.fillRect(sx+8,sy+6+bob,ST-16,5);
+      ctx.fillRect(sx+10,sy+2+bob,4,6);ctx.fillRect(sx+ST/2-2,sy+1+bob,4,7);ctx.fillRect(sx+ST-14,sy+2+bob,4,6);
+      // Glow
+      ctx.fillStyle=`rgba(255,215,0,${0.1+Math.sin(t*2)*0.05})`;
+      ctx.beginPath();ctx.arc(sx+ST/2,sy+ST/2+bob,24,0,Math.PI*2);ctx.fill();
+    }
+    
     // HP bar
     const hpPct=en.hp/info.hp;
-    ctx.fillStyle='#222';ctx.fillRect(sx+4,sy,ST-8,4);
-    ctx.fillStyle=hpPct>0.5?C.green:hpPct>0.25?C.orange:C.red;
-    ctx.fillRect(sx+4,sy,(ST-8)*hpPct,4);
-    if(info.boss){ctx.fillStyle=C.gold;ctx.font=`bold 10px ${FONT}`;ctx.fillText('BOSS',sx+ST/2,sy-4);}
+    ctx.fillStyle='#111';ctx.fillRect(sx+4,sy-2,ST-8,6);
+    ctx.fillStyle=hpPct>0.5?'#4F4':hpPct>0.25?C.orange:C.red;
+    ctx.fillRect(sx+5,sy-1,(ST-10)*hpPct,4);
+    // Name
+    ctx.fillStyle=info.boss?C.gold:'#AAA';ctx.font=`bold ${info.boss?12:10}px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(info.name,sx+ST/2,sy-6);
+    if(info.boss){ctx.fillStyle=C.gold;ctx.fillText('⚠️ BOSS',sx+ST/2,sy-18);}
   }
   // Draw player
   drawPlayer();
@@ -5988,7 +6038,7 @@ function drawMine(){
   // Controls
   ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,canvas.height-22,canvas.width,22);
   ctx.fillStyle='#AAA';ctx.font=`12px ${FONT}`;ctx.textAlign='center';
-  ctx.fillText('WASD: Move | E: Attack/Use Stairs | Esc: Exit Mine',canvas.width/2,canvas.height-7);
+  ctx.fillText('WASD: Move | E: Attack | X: Use Stairs | Esc: Flee',canvas.width/2,canvas.height-7);
 }
 
 function drawCombat(){
