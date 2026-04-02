@@ -585,6 +585,9 @@ let mineFloor = null; // null=overworld, or {map, w, h, enemies, loot, stairsUp,
 let mineLevel = 0;
 let combat = null; // null or {enemy, enemyHp, enemyMaxHp, playerHp, playerMaxHp, log, turn}
 let mineReturnX = 0, mineReturnY = 0;
+let playerSwing = 0; // attack animation timer
+let screenShake = 0;
+let damageNumbers = []; // {x, y, text, life, color}
 
 const MINE_W = 30, MINE_H = 22; // bigger dungeon
 
@@ -2579,33 +2582,49 @@ function update(dt) {
       // Mine: enemy AI + loot pickup
       if(mineFloor){
         const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
-        // Enemy AI — move toward player and attack on contact
+        // Enemy AI — chase, attack when adjacent, animations
         for(const en of mineFloor.enemies){
           if(!en.alive)continue;
           en._mt=(en._mt||0)+dt;
+          en._atkCd=(en._atkCd||0)-dt;
+          en._hitFlash=Math.max(0,(en._hitFlash||0)-dt);
+          en._lungeX=(en._lungeX||0)*0.85; en._lungeY=(en._lungeY||0)*0.85; // lunge decay
           const dist=Math.hypot(en.x-ptx,en.y-pty);
-          // Chase player if within 5 tiles
-          if(dist<5&&en._mt>0.8){
+          const info=MINE_ENEMIES[en.type];
+          const aggroRange=info.boss?8:5;
+          const moveSpeed=info.boss?1.2:0.7;
+          
+          // Chase player if within aggro range
+          if(dist<aggroRange&&dist>1.2&&en._mt>moveSpeed){
             en._mt=0;
             const dx=Math.sign(ptx-en.x),dy=Math.sign(pty-en.y);
-            const nx=en.x+dx,ny=en.y+dy;
-            if(mineFloor.map[ny]&&mineFloor.map[ny][nx]!==T.CLIFF&&!(nx===ptx&&ny===pty)){
-              en.x=nx;en.y=ny;
-            }
+            // Randomly pick horizontal or vertical (not both — looks more natural)
+            let nx=en.x,ny=en.y;
+            if(Math.random()<0.5){nx+=dx;}else{ny+=dy;}
+            if(mineFloor.map[ny]&&mineFloor.map[ny][nx]!==T.CLIFF){en.x=nx;en.y=ny;}
           }
-          // Attack player on contact
-          if(en.x===ptx&&en.y===pty){
-            const info=MINE_ENEMIES[en.type];
-            const dmg=info.atk+Math.floor(Math.random()*3);
+          
+          // Attack when adjacent (within 1.5 tiles)
+          if(dist<=1.5&&en._atkCd<=0){
+            en._atkCd=info.boss?0.8:1.2; // boss attacks faster
+            const dmg=info.atk+Math.floor(Math.random()*4);
             player.energy=Math.max(0,player.energy-dmg);
-            notify(`${info.icon} hits you for ${dmg}!`,1.5);
+            // Lunge animation toward player
+            en._lungeX=Math.sign(ptx-en.x)*6;en._lungeY=Math.sign(pty-en.y)*6;
+            // Damage number
+            damageNumbers.push({x:player.x*SCALE,y:player.y*SCALE-20,text:'-'+dmg,life:1.2,color:'#FF4444'});
+            screenShake=0.15;
             sfx.error();
-            // Push enemy back
-            en.x-=Math.sign(ptx-en.x)||1;en.y-=Math.sign(pty-en.y);
-            en.x=Math.max(1,Math.min(MINE_W-2,en.x));en.y=Math.max(1,Math.min(MINE_H-2,en.y));
-            if(player.energy<=0){notify('💀 Defeated! Retreating...',3);setTimeout(()=>exitMine(),1000);player.energy=15;}
+            tone(200+Math.random()*100,.1,'sawtooth',.04); // hit sound
+            if(player.energy<=0){notify('💀 Defeated!',3);setTimeout(()=>exitMine(),1000);player.energy=15;}
           }
         }
+        // Update damage numbers
+        for(let i=damageNumbers.length-1;i>=0;i--){damageNumbers[i].life-=dt;damageNumbers[i].y-=40*dt;if(damageNumbers[i].life<=0)damageNumbers.splice(i,1);}
+        // Update player swing
+        if(playerSwing>0)playerSwing-=dt;
+        // Screen shake decay
+        if(screenShake>0)screenShake-=dt;
         // Loot pickup (proximity)
         for(let i=mineFloor.loot.length-1;i>=0;i--){
           const l=mineFloor.loot[i];
@@ -2709,18 +2728,24 @@ function update(dt) {
     }
     // Mine: attack nearest enemy in range (action combat — E key)
     else if(mineFloor){
-      // Attack nearest enemy in range
+      // Attack nearest enemy in range — with animation
       for(const en of mineFloor.enemies){
-        if(en.alive&&Math.hypot(en.x*TILE+8-player.x,en.y*TILE+8-player.y)<TILE*2){
+        if(en.alive&&Math.hypot(en.x*TILE+8-player.x,en.y*TILE+8-player.y)<TILE*2.5){
+          playerSwing=0.3; // trigger swing animation
           const info=MINE_ENEMIES[en.type];
-          const pAtk=10+skills.mining.level*3+(hasItem('pickaxe')?5:0);
-          const dmg=pAtk+Math.floor(Math.random()*5);
+          const pAtk=10+skills.mining.level*3+(hasItem('pickaxe')?8:0);
+          const dmg=pAtk+Math.floor(Math.random()*6);
           en.hp-=dmg;
+          en._hitFlash=0.2; // white flash
           // Knockback
-          en.x+=Math.sign(en.x*TILE-player.x);en.y+=Math.sign(en.y*TILE-player.y);
+          const kbx=Math.sign(en.x*TILE-player.x),kby=Math.sign(en.y*TILE-player.y);
+          en.x+=kbx;en.y+=kby;
           en.x=Math.max(1,Math.min(MINE_W-2,en.x));en.y=Math.max(1,Math.min(MINE_H-2,en.y));
-          sfx.repair();
-          notify(`⚔️ Hit ${info.icon} for ${dmg}!`,1);
+          // Damage number
+          damageNumbers.push({x:en.x*ST+ST/2,y:en.y*ST,text:'-'+dmg,life:1.0,color:'#FFDD44'});
+          // Sound
+          tone(300+Math.random()*200,.08,'square',.05);tone(200,.05,'sawtooth',.03);
+          screenShake=0.1;
           if(en.hp<=0){
             en.alive=false;
             if(info.loot)addItem(info.loot);
@@ -5889,6 +5914,10 @@ function drawNPCHearts(npc) {
 function drawMine(){
   if(!mineFloor)return;
   const f=mineFloor;
+  // Screen shake offset
+  if(screenShake>0){
+    cam.x+=Math.random()*8-4;cam.y+=Math.random()*8-4;
+  }
   // Draw floor tiles
   for(let y=0;y<f.h;y++)for(let x=0;x<f.w;x++){
     const sx=x*ST-cam.x,sy=y*ST-cam.y;
@@ -5939,9 +5968,14 @@ function drawMine(){
     const info=MINE_ENEMIES[en.type];
     const t=performance.now()/1000;
     const bob=Math.sin(t*3+en.x+en.y)*2;
+    // Apply lunge offset
+    const lx=(en._lungeX||0)*SCALE, ly=(en._lungeY||0)*SCALE;
+    const esx=sx+lx, esy=sy+ly;
+    // Hit flash — draw white overlay
+    const hitFlash=(en._hitFlash||0)>0;
     
     // Shadow
-    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(sx+ST/2,sy+ST-2,12,4,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.ellipse(esx+ST/2,esy+ST-2,12,4,0,0,Math.PI*2);ctx.fill();
     
     if(en.type==='malware_bot'){
       // Small robot — grey box with red eye
@@ -5985,6 +6019,9 @@ function drawMine(){
       ctx.beginPath();ctx.arc(sx+ST/2,sy+ST/2+bob,24,0,Math.PI*2);ctx.fill();
     }
     
+    // Hit flash overlay
+    if(hitFlash){ctx.fillStyle='rgba(255,255,255,0.6)';ctx.fillRect(sx+6,sy+8,ST-12,ST-10);}
+    
     // HP bar
     const hpPct=en.hp/info.hp;
     ctx.fillStyle='#111';ctx.fillRect(sx+4,sy-2,ST-8,6);
@@ -5997,6 +6034,34 @@ function drawMine(){
   }
   // Draw player
   drawPlayer();
+  
+  // Weapon swing animation
+  if(playerSwing>0){
+    const px2=player.x*SCALE-cam.x,py2=player.y*SCALE-cam.y;
+    const swProg=1-playerSwing/0.3;
+    const swAngle=swProg*Math.PI*1.5-Math.PI*0.75;
+    const swR=32;
+    ctx.save();ctx.translate(px2,py2);ctx.rotate(swAngle);
+    // Swing trail
+    ctx.strokeStyle=`rgba(255,220,100,${0.6*(1-swProg)})`;ctx.lineWidth=4;
+    ctx.beginPath();ctx.arc(0,0,swR,-0.4,0.4);ctx.stroke();
+    // Pickaxe head
+    ctx.fillStyle='#AAA';ctx.fillRect(swR-6,-5,10,10);
+    ctx.fillStyle='#8B6340';ctx.fillRect(0,-2,swR-6,4); // handle
+    ctx.restore();
+  }
+  
+  // Damage numbers
+  for(const dn of damageNumbers){
+    const dnx=dn.x-cam.x,dny=dn.y-cam.y;
+    const a=Math.min(1,dn.life*2);
+    ctx.globalAlpha=a;
+    ctx.fillStyle='#000';ctx.font=`bold 18px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText(dn.text,dnx+1,dny+1);
+    ctx.fillStyle=dn.color;
+    ctx.fillText(dn.text,dnx,dny);
+    ctx.globalAlpha=1;
+  }
   
   // Wall torches — drawn on top with warm glow
   if(f.torches){
