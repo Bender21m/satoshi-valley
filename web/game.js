@@ -588,6 +588,32 @@ let mineReturnX = 0, mineReturnY = 0;
 let playerSwing = 0; // attack animation timer
 let screenShake = 0;
 let damageNumbers = []; // {x, y, text, life, color}
+let projectiles = []; // {x, y, vx, vy, life, type, dmg}
+let skillCooldowns = {orangePill:0, lightning:0, hashAttack:0};
+
+// ============================================================
+// COMBAT SKILLS — Bitcoin-themed abilities
+// ============================================================
+const COMBAT_SKILLS = {
+  orangePill: {
+    name:'Orange Pill',key:'1 (mine)',desc:'Throw a glowing orange pill that damages and converts enemies.',
+    cooldown:2, dmg:15, range:6, color:'#F7931A', icon:'💊',
+    unlockLevel:1, // mining level needed
+    projectile:true,
+  },
+  lightning: {
+    name:'Lightning Strike',key:'2 (mine)',desc:'Chain lightning zaps nearby enemies. Scales with engineering.',
+    cooldown:5, dmg:25, range:4, color:'#FFDD44', icon:'⚡',
+    unlockLevel:3,
+    aoe:true, // hits all enemies in range
+  },
+  hashAttack: {
+    name:'51% Attack',key:'3 (mine)',desc:'Massive AOE blast. The nuclear option.',
+    cooldown:12, dmg:50, range:3, color:'#FF4444', icon:'💥',
+    unlockLevel:5,
+    aoe:true,
+  },
+};
 
 const MINE_W = 30, MINE_H = 22; // bigger dungeon
 
@@ -2468,6 +2494,97 @@ function update(dt) {
   if(jp['m']) toggleMusic();
   if(jp['t']){craftOpen=!craftOpen;craftOpen?sfx.menuOpen():sfx.menuClose();craftCur=0;}
   if(jp['c']){if(isNearHome()){citadelMenuOpen=!citadelMenuOpen;citadelMenuOpen?sfx.menuOpen():sfx.menuClose();}else{notify('Get near your home to open the Citadel menu [C]',2);sfx.error();}}
+  // Combat skills in mines (1, 2, 3 keys)
+  if(mineFloor&&!combat){
+    // Skill cooldown tick
+    for(const k in skillCooldowns)if(skillCooldowns[k]>0)skillCooldowns[k]-=dt;
+    
+    // 1 = Orange Pill (projectile)
+    if(jp['1']&&skills.mining.level>=COMBAT_SKILLS.orangePill.unlockLevel&&skillCooldowns.orangePill<=0){
+      skillCooldowns.orangePill=COMBAT_SKILLS.orangePill.cooldown;
+      const spd=5;
+      projectiles.push({
+        x:player.x,y:player.y,
+        vx:player.facing.x*spd*TILE,vy:player.facing.y*spd*TILE,
+        life:1.2,type:'orangePill',dmg:COMBAT_SKILLS.orangePill.dmg+skills.mining.level*2,
+        trail:[],
+      });
+      tone(440,.1,'sine',.04);tone(660,.15,'sine',.03);
+      notify('💊 Orange Pill!',1);
+      playerSwing=0.2;
+    }
+    // 2 = Lightning Strike (AOE)
+    if(jp['2']&&skills.engineering.level>=COMBAT_SKILLS.lightning.unlockLevel&&skillCooldowns.lightning<=0){
+      skillCooldowns.lightning=COMBAT_SKILLS.lightning.cooldown;
+      const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
+      let hits=0;
+      for(const en of mineFloor.enemies){
+        if(en.alive&&Math.hypot(en.x-ptx,en.y-pty)<=COMBAT_SKILLS.lightning.range){
+          const dmg=COMBAT_SKILLS.lightning.dmg+skills.engineering.level*3;
+          en.hp-=dmg;en._hitFlash=0.3;
+          damageNumbers.push({x:en.x*ST+ST/2,y:en.y*ST,text:'-'+dmg,life:1.2,color:'#FFDD44'});
+          if(en.hp<=0){en.alive=false;const info=MINE_ENEMIES[en.type];if(info.loot)addItem(info.loot);addXP('mining',info.xp);notify('💥 '+info.name+' destroyed!',2);}
+          hits++;
+        }
+      }
+      // Lightning visual
+      projectiles.push({x:player.x,y:player.y,vx:0,vy:0,life:0.5,type:'lightning',dmg:0,radius:COMBAT_SKILLS.lightning.range*ST});
+      screenShake=0.2;
+      [800,1000,1200].forEach((f,i)=>setTimeout(()=>tone(f,.06,'square',.04),i*50));
+      notify(`⚡ Lightning Strike! ${hits} hit!`,2);
+    }
+    // 3 = 51% Attack (big AOE)
+    if(jp['3']&&skills.mining.level>=COMBAT_SKILLS.hashAttack.unlockLevel&&skillCooldowns.hashAttack<=0){
+      skillCooldowns.hashAttack=COMBAT_SKILLS.hashAttack.cooldown;
+      const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
+      let hits=0;
+      for(const en of mineFloor.enemies){
+        if(en.alive&&Math.hypot(en.x-ptx,en.y-pty)<=COMBAT_SKILLS.hashAttack.range){
+          const dmg=COMBAT_SKILLS.hashAttack.dmg+skills.mining.level*5;
+          en.hp-=dmg;en._hitFlash=0.4;
+          damageNumbers.push({x:en.x*ST+ST/2,y:en.y*ST,text:'-'+dmg+'!',life:1.5,color:'#FF4444'});
+          // Knockback
+          en.x+=Math.sign(en.x-ptx)*2;en.y+=Math.sign(en.y-pty)*2;
+          en.x=Math.max(1,Math.min(MINE_W-2,en.x));en.y=Math.max(1,Math.min(MINE_H-2,en.y));
+          if(en.hp<=0){en.alive=false;const info=MINE_ENEMIES[en.type];if(info.loot)addItem(info.loot);addXP('mining',info.xp);notify('💥 '+info.name+' destroyed!',2,info.boss);}
+          hits++;
+        }
+      }
+      projectiles.push({x:player.x,y:player.y,vx:0,vy:0,life:0.8,type:'hashAttack',dmg:0,radius:COMBAT_SKILLS.hashAttack.range*ST});
+      screenShake=0.35;
+      sfx.block();
+      notify(`💥 51% ATTACK! ${hits} hit!`,3,true);
+    }
+  }
+  
+  // Update projectiles
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p=projectiles[i];
+    p.life-=dt;
+    if(p.life<=0){projectiles.splice(i,1);continue;}
+    if(p.type==='orangePill'){
+      p.x+=p.vx*dt;p.y+=p.vy*dt;
+      p.trail.push({x:p.x*SCALE,y:p.y*SCALE,life:0.3});
+      // Hit check
+      if(mineFloor){
+        const ptx=Math.floor(p.x/TILE),pty=Math.floor(p.y/TILE);
+        for(const en of mineFloor.enemies){
+          if(en.alive&&Math.hypot(en.x-ptx,en.y-pty)<1.5){
+            en.hp-=p.dmg;en._hitFlash=0.25;
+            damageNumbers.push({x:en.x*ST+ST/2,y:en.y*ST,text:'-'+p.dmg,life:1,color:C.orange});
+            tone(300,.08,'square',.04);
+            if(en.hp<=0){en.alive=false;const info=MINE_ENEMIES[en.type];if(info.loot)addItem(info.loot);addXP('mining',info.xp);notify('💊 '+info.name+' orange pilled!',2);sfx.block();}
+            p.life=0;break; // projectile consumed
+          }
+        }
+        // Wall collision
+        if(mineFloor.map[pty]&&mineFloor.map[pty][ptx]===T.CLIFF)p.life=0;
+      }
+    }
+    // Decay trails
+    if(p.trail){for(let j=p.trail.length-1;j>=0;j--){p.trail[j].life-=dt;if(p.trail[j].life<=0)p.trail.splice(j,1);}}
+  }
+  
   // X key: use stairs in mines / exit mine
   if(jp['x']&&mineFloor&&!combat){
     const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
@@ -6051,6 +6168,61 @@ function drawMine(){
     ctx.restore();
   }
   
+  // Projectiles & skill effects
+  for(const p of projectiles){
+    if(p.type==='orangePill'){
+      const psx=p.x*SCALE-cam.x,psy=p.y*SCALE-cam.y;
+      // Trail
+      if(p.trail){for(const t of p.trail){
+        ctx.fillStyle=`rgba(247,147,26,${t.life})`;
+        ctx.beginPath();ctx.arc(t.x-cam.x,t.y-cam.y,4+t.life*6,0,Math.PI*2);ctx.fill();
+      }}
+      // Pill
+      ctx.fillStyle=C.orange;ctx.beginPath();ctx.arc(psx,psy,8,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#FFF';ctx.font=`bold 10px ${FONT}`;ctx.textAlign='center';ctx.fillText('₿',psx,psy+3);
+      // Glow
+      ctx.fillStyle='rgba(247,147,26,0.15)';ctx.beginPath();ctx.arc(psx,psy,18,0,Math.PI*2);ctx.fill();
+    }
+    else if(p.type==='lightning'){
+      const lx=player.x*SCALE-cam.x,ly=player.y*SCALE-cam.y;
+      const prog=1-p.life/0.5;
+      ctx.strokeStyle=`rgba(255,221,68,${(1-prog)*0.6})`;ctx.lineWidth=2;
+      // Lightning bolts to each enemy
+      if(mineFloor){for(const en of mineFloor.enemies){
+        if(!en.alive)continue;
+        const ex=en.x*ST+ST/2-cam.x,ey=en.y*ST+ST/2-cam.y;
+        if(Math.hypot(ex-lx,ey-ly)<p.radius){
+          ctx.beginPath();ctx.moveTo(lx,ly);
+          // Jagged line
+          const segs=5;
+          for(let s=1;s<=segs;s++){
+            const t2=s/segs;
+            ctx.lineTo(lx+(ex-lx)*t2+(Math.random()-0.5)*30,ly+(ey-ly)*t2+(Math.random()-0.5)*30);
+          }
+          ctx.stroke();
+        }
+      }}
+      // Central flash
+      ctx.fillStyle=`rgba(255,255,200,${(1-prog)*0.2})`;ctx.beginPath();ctx.arc(lx,ly,p.radius*(0.5+prog*0.5),0,Math.PI*2);ctx.fill();
+    }
+    else if(p.type==='hashAttack'){
+      const hx=player.x*SCALE-cam.x,hy=player.y*SCALE-cam.y;
+      const prog=1-p.life/0.8;
+      const r=p.radius*prog;
+      // Expanding red ring
+      ctx.strokeStyle=`rgba(255,68,68,${(1-prog)*0.7})`;ctx.lineWidth=4;
+      ctx.beginPath();ctx.arc(hx,hy,r,0,Math.PI*2);ctx.stroke();
+      // Inner glow
+      ctx.fillStyle=`rgba(255,100,50,${(1-prog)*0.15})`;ctx.beginPath();ctx.arc(hx,hy,r*0.7,0,Math.PI*2);ctx.fill();
+      // Hash symbols flying outward
+      ctx.fillStyle=`rgba(255,68,68,${(1-prog)*0.8})`;ctx.font=`bold 14px ${FONT}`;ctx.textAlign='center';
+      for(let a=0;a<6;a++){
+        const angle=a*Math.PI/3+prog*2;
+        ctx.fillText('#',hx+Math.cos(angle)*r*0.6,hy+Math.sin(angle)*r*0.6);
+      }
+    }
+  }
+  
   // Damage numbers
   for(const dn of damageNumbers){
     const dnx=dn.x-cam.x,dny=dn.y-cam.y;
@@ -6100,10 +6272,35 @@ function drawMine(){
   ctx.fillRect(16,54,180*(player.energy/player.maxEnergy),10);
   ctx.fillStyle=C.white;ctx.font=`bold 10px ${FONT}`;
   ctx.fillText(`HP: ${Math.floor(player.energy)}/${player.maxEnergy}`,16,63);
+  // Skill bar
+  const skillBarY=canvas.height-70;
+  ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(canvas.width/2-180,skillBarY-4,360,34);
+  const skillList=[
+    {key:'E',name:'Melee',cd:0,ready:true,color:'#AAA',icon:'⛏️'},
+    {key:'1',name:'Orange Pill',cd:skillCooldowns.orangePill,max:COMBAT_SKILLS.orangePill.cooldown,ready:skills.mining.level>=1,color:C.orange,icon:'💊',unlock:1},
+    {key:'2',name:'Lightning',cd:skillCooldowns.lightning,max:COMBAT_SKILLS.lightning.cooldown,ready:skills.engineering.level>=3,color:'#FFDD44',icon:'⚡',unlock:3},
+    {key:'3',name:'51% Attack',cd:skillCooldowns.hashAttack,max:COMBAT_SKILLS.hashAttack.cooldown,ready:skills.mining.level>=5,color:'#FF4444',icon:'💥',unlock:5},
+  ];
+  skillList.forEach((sk,i)=>{
+    const sx2=canvas.width/2-170+i*88;
+    ctx.fillStyle=sk.ready?(sk.cd>0?'rgba(60,60,60,0.8)':'rgba(40,40,50,0.8)'):'rgba(30,30,30,0.5)';
+    ctx.fillRect(sx2,skillBarY,80,26);
+    ctx.strokeStyle=sk.ready?(sk.cd<=0?sk.color:'#555'):'#333';ctx.lineWidth=1.5;ctx.strokeRect(sx2,skillBarY,80,26);
+    // Icon + key
+    ctx.font='14px serif';ctx.textAlign='center';ctx.fillText(sk.icon,sx2+16,skillBarY+18);
+    ctx.fillStyle=sk.ready?'#FFF':'#555';ctx.font=`bold 10px ${FONT}`;
+    ctx.fillText(`[${sk.key}]`,sx2+40,skillBarY+12);
+    ctx.font=`9px ${FONT}`;ctx.fillText(sk.name,sx2+52,skillBarY+22);
+    // Cooldown overlay
+    if(sk.cd>0&&sk.max){const pct=sk.cd/sk.max;ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(sx2,skillBarY,80*pct,26);
+      ctx.fillStyle='#FFF';ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';ctx.fillText(sk.cd.toFixed(1)+'s',sx2+40,skillBarY+18);}
+    if(!sk.ready&&sk.unlock){ctx.fillStyle='#666';ctx.font=`9px ${FONT}`;ctx.textAlign='center';ctx.fillText('Lv'+sk.unlock,sx2+40,skillBarY+18);}
+  });
+  
   // Controls
   ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,canvas.height-22,canvas.width,22);
   ctx.fillStyle='#AAA';ctx.font=`12px ${FONT}`;ctx.textAlign='center';
-  ctx.fillText('WASD: Move | E: Attack | X: Use Stairs | Esc: Flee',canvas.width/2,canvas.height-7);
+  ctx.fillText('WASD: Move | E: Melee | 1-3: Skills | X: Stairs | Esc: Flee',canvas.width/2,canvas.height-7);
 }
 
 function drawCombat(){
