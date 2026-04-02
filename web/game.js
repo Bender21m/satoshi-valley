@@ -586,7 +586,7 @@ let mineLevel = 0;
 let combat = null; // null or {enemy, enemyHp, enemyMaxHp, playerHp, playerMaxHp, log, turn}
 let mineReturnX = 0, mineReturnY = 0;
 
-const MINE_W = 20, MINE_H = 15;
+const MINE_W = 30, MINE_H = 22; // bigger dungeon
 
 const MINE_ENEMIES = {
   malware_bot: {name:'Malware Bot',hp:20,atk:5,icon:'🤖',xp:10,loot:'copper_ore',desc:'A corrupted maintenance bot.'},
@@ -609,15 +609,20 @@ function generateMineFloor(level) {
   const m=[];
   for(let y=0;y<h;y++){m[y]=[];for(let x=0;x<w;x++)m[y][x]=T.CLIFF;}
   
-  // Carve rooms
+  // Carve rooms (bigger)
   const rooms=[];
-  for(let i=0;i<4+Math.floor(level*0.5);i++){
-    const rw=3+Math.floor(Math.random()*4);
-    const rh=3+Math.floor(Math.random()*3);
+  const torches=[];
+  for(let i=0;i<5+Math.floor(level*0.7);i++){
+    const rw=4+Math.floor(Math.random()*5);
+    const rh=3+Math.floor(Math.random()*4);
     const rx=1+Math.floor(Math.random()*(w-rw-2));
     const ry=1+Math.floor(Math.random()*(h-rh-2));
     for(let y=ry;y<ry+rh;y++)for(let x=rx;x<rx+rw;x++)m[y][x]=T.STONE;
     rooms.push({x:rx+Math.floor(rw/2),y:ry+Math.floor(rh/2),w:rw,h:rh});
+    // Place torches on walls of each room
+    torches.push({x:rx,y:ry+1});
+    torches.push({x:rx+rw-1,y:ry+1});
+    if(rw>5) torches.push({x:rx+Math.floor(rw/2),y:ry});
   }
   
   // Connect rooms with corridors
@@ -647,7 +652,7 @@ function generateMineFloor(level) {
   
   // Place enemies
   const enemies=[];
-  const enemyCount=1+level+Math.floor(Math.random()*2);
+  const enemyCount=3+level*2+Math.floor(Math.random()*3); // more enemies
   const enemyTypes=level<2?['malware_bot']:level<3?['malware_bot','script_kiddie']:level<4?['script_kiddie','ransomware']:['ransomware'];
   for(let i=0;i<enemyCount;i++){
     const room=rooms[1+Math.floor(Math.random()*(rooms.length-1))];
@@ -664,7 +669,7 @@ function generateMineFloor(level) {
     enemies.push({x:bossRoom.x,y:bossRoom.y,type:'pool_operator',hp:MINE_ENEMIES.pool_operator.hp,alive:true});
   }
   
-  return {map:m,w,h,enemies,loot,stairsUp,stairsDown,rooms};
+  return {map:m,w,h,enemies,loot,stairsUp,stairsDown,rooms,torches};
 }
 
 function enterMine(){
@@ -2687,14 +2692,12 @@ function update(dt) {
   intCd-=dt;
   if(jp['e']&&intCd<=0&&!shopOpen&&!invOpen&&!chestOpen){
     intCd=.25;
-    // Combat is now action-based (handled in mine navigation E press above)
     if(dlg){if(!dlg.done){dlg.displayedChars=dlg.fullText.length;dlg.done=true;}else{dlg=null;}}
-    // Mine entrance check
-    else if(!interior&&!mineFloor){
-      const mineEnt=decor.find(d=>d.type==='mine_entrance'&&Math.hypot(d.x*TILE+8-player.x,d.y*TILE+8-player.y)<TILE*2);
-      if(mineEnt){enterMine();for(const k in jp)jp[k]=false;return;}
+    // Mine entrance check (only consume if actually near entrance)
+    else if(!interior&&!mineFloor&&decor.find(d=>d.type==='mine_entrance'&&Math.hypot(d.x*TILE+8-player.x,d.y*TILE+8-player.y)<TILE*2)){
+      enterMine();for(const k in jp)jp[k]=false;return;
     }
-    // Mine navigation — stairs proximity check (within 1 tile)
+    // Mine navigation — stairs + attack
     else if(mineFloor){
       const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
       // Exit / go up
@@ -5942,20 +5945,45 @@ function drawMine(){
     ctx.fillRect(sx+4,sy,(ST-8)*hpPct,4);
     if(info.boss){ctx.fillStyle=C.gold;ctx.font=`bold 10px ${FONT}`;ctx.fillText('BOSS',sx+ST/2,sy-4);}
   }
-  // Draw player
-  drawPlayer();
-  // Dark overlay with torch light — generous visibility
-  ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(0,0,canvas.width,canvas.height);
-  // Cut light circle around player
+  // Draw wall torches with light pools
+  if(f.torches){
+    for(const tc of f.torches){
+      const tsx=tc.x*ST-cam.x,tsy=tc.y*ST-cam.y;
+      // Torch bracket
+      ctx.fillStyle='#5A3A1A';ctx.fillRect(tsx+ST/2-2,tsy+4,4,12);
+      // Flame
+      const flicker=Math.sin(performance.now()/200+tc.x*3+tc.y*7)*3;
+      ctx.fillStyle='#FF8830';ctx.fillRect(tsx+ST/2-3+flicker,tsy,6,6);
+      ctx.fillStyle='#FFCC40';ctx.fillRect(tsx+ST/2-2+flicker,tsy+1,4,3);
+      // Light pool on floor
+      ctx.fillStyle='rgba(255,180,80,0.08)';
+      ctx.beginPath();ctx.arc(tsx+ST/2,tsy+ST,60,0,Math.PI*2);ctx.fill();
+    }
+  }
+  
+  // Dark overlay — lighter so you can see more
+  ctx.fillStyle='rgba(0,0,0,0.45)';ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Cut light circle around player (BIG)
   const px=player.x*SCALE-cam.x,py=player.y*SCALE-cam.y;
-  const lightR=200+Math.sin(performance.now()/300)*12; // bigger light
+  const lightR=260+Math.sin(performance.now()/300)*15;
   ctx.save();ctx.globalCompositeOperation='destination-out';
   const grad=ctx.createRadialGradient(px,py,0,px,py,lightR);
-  grad.addColorStop(0,'rgba(0,0,0,1)');grad.addColorStop(0.7,'rgba(0,0,0,0.8)');grad.addColorStop(1,'rgba(0,0,0,0)');
+  grad.addColorStop(0,'rgba(0,0,0,1)');grad.addColorStop(0.6,'rgba(0,0,0,0.9)');grad.addColorStop(1,'rgba(0,0,0,0)');
   ctx.fillStyle=grad;ctx.beginPath();ctx.arc(px,py,lightR,0,Math.PI*2);ctx.fill();
+  // Also cut light around torches
+  if(f.torches){for(const tc of f.torches){
+    const tsx=tc.x*ST-cam.x+ST/2,tsy=tc.y*ST-cam.y+ST/2;
+    const tGrad=ctx.createRadialGradient(tsx,tsy,0,tsx,tsy,70);
+    tGrad.addColorStop(0,'rgba(0,0,0,0.7)');tGrad.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=tGrad;ctx.beginPath();ctx.arc(tsx,tsy,70,0,Math.PI*2);ctx.fill();
+  }}
   ctx.restore();
-  // Warm torch glow
-  ctx.fillStyle=`rgba(255,180,80,0.06)`;ctx.beginPath();ctx.arc(px,py,lightR*0.6,0,Math.PI*2);ctx.fill();
+  
+  // Draw player ON TOP of darkness (always visible)
+  drawPlayer();
+  
+  // Warm glow around player
+  ctx.fillStyle='rgba(255,180,80,0.04)';ctx.beginPath();ctx.arc(px,py,lightR*0.5,0,Math.PI*2);ctx.fill();
   // Level indicator
   // Mine HUD
   ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(8,8,220,70);
