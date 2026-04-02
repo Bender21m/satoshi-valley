@@ -508,6 +508,12 @@ const ITEMS = {
   shed_upgrade:{name:'Shed Expansion Kit',desc:'Doubles mining shed capacity',icon:'🏗️',type:'quest',buy:0,sell:0,stack:false},
   citadel_materials:{name:'Citadel Materials',desc:'Reduces next citadel upgrade cost by 25%',icon:'🏰',type:'quest',buy:0,sell:0,stack:false},
   fishing_rod:{name:'Fishing Rod',desc:'Cast into water. Press R facing water!',icon:'🎣',type:'tool',buy:500,sell:200,stack:true},
+  // Mine loot
+  old_gpu:{name:'Old GPU',desc:'Salvaged GPU card from the data center.',icon:'🖥️',type:'mat',buy:0,sell:800,stack:true},
+  server_rack:{name:'Server Rack Part',desc:'Heavy duty rack mount hardware.',icon:'🗄️',type:'mat',buy:0,sell:400,stack:true},
+  cooling_unit:{name:'Cooling Unit',desc:'Industrial cooler. Works better than fans.',icon:'❄️',type:'mat',buy:0,sell:600,stack:true},
+  fiber_optic:{name:'Fiber Optic Cable',desc:'High-speed network cable.',icon:'🔌',type:'mat',buy:0,sell:300,stack:true},
+  rare_chip:{name:'Rare Processor',desc:'Prototype chip from the Satoshi era. Extremely valuable!',icon:'💠',type:'mat',buy:0,sell:5000,stack:true},
   // Late-game sat sinks
   satellite_node:{name:'Satellite Node',desc:'+20% mining income. Broadcast sats from space!',icon:'🛰️',type:'deco',buy:500000,sell:200000,stack:false},
   freedom_monument:{name:'Freedom Monument',desc:'NPC happiness boost. A beacon of sovereignty.',icon:'🗽',type:'deco',buy:200000,sell:80000,stack:false},
@@ -571,6 +577,186 @@ let titleCur = 0;
 let titleTip = '';
 let interiorNPCs = []; // NPCs present in current interior
 let fishing = null; // null or {timer, barPos, barDir, catchZone, catchSize, fish, biting}
+
+// ============================================================
+// THE MINES — Abandoned Data Center Dungeon
+// ============================================================
+let mineFloor = null; // null=overworld, or {map, w, h, enemies, loot, stairsUp, stairsDown}
+let mineLevel = 0;
+let combat = null; // null or {enemy, enemyHp, enemyMaxHp, playerHp, playerMaxHp, log, turn}
+let mineReturnX = 0, mineReturnY = 0;
+
+const MINE_W = 20, MINE_H = 15;
+
+const MINE_ENEMIES = {
+  malware_bot: {name:'Malware Bot',hp:20,atk:5,icon:'🤖',xp:10,loot:'copper_ore',desc:'A corrupted maintenance bot.'},
+  script_kiddie: {name:'Script Kiddie',hp:30,atk:8,icon:'👾',xp:15,loot:'silicon',desc:'Annoying but persistent.'},
+  ransomware: {name:'Ransomware',hp:50,atk:12,icon:'💀',xp:25,loot:'old_gpu',desc:'Pay up or lose your data.'},
+  pool_operator: {name:'The Pool Operator',hp:150,atk:20,icon:'👹',xp:100,loot:'rare_chip',boss:true,desc:'Controls 51% of the abandoned hashrate.'},
+};
+
+const MINE_LOOT_TABLES = [
+  ['copper_ore','copper_ore','silicon','fiber_optic','server_rack'], // level 1
+  ['copper_ore','silicon','fiber_optic','server_rack','cooling_unit'], // level 2
+  ['silicon','server_rack','cooling_unit','old_gpu','fiber_optic'], // level 3
+  ['old_gpu','cooling_unit','circuit_board','server_rack'], // level 4
+  ['old_gpu','rare_chip','advanced_rig_part','cooling_unit'], // level 5 (boss)
+];
+
+function generateMineFloor(level) {
+  const w=MINE_W, h=MINE_H;
+  // Start with all walls
+  const m=[];
+  for(let y=0;y<h;y++){m[y]=[];for(let x=0;x<w;x++)m[y][x]=T.CLIFF;}
+  
+  // Carve rooms
+  const rooms=[];
+  for(let i=0;i<4+Math.floor(level*0.5);i++){
+    const rw=3+Math.floor(Math.random()*4);
+    const rh=3+Math.floor(Math.random()*3);
+    const rx=1+Math.floor(Math.random()*(w-rw-2));
+    const ry=1+Math.floor(Math.random()*(h-rh-2));
+    for(let y=ry;y<ry+rh;y++)for(let x=rx;x<rx+rw;x++)m[y][x]=T.STONE;
+    rooms.push({x:rx+Math.floor(rw/2),y:ry+Math.floor(rh/2),w:rw,h:rh});
+  }
+  
+  // Connect rooms with corridors
+  for(let i=1;i<rooms.length;i++){
+    let cx=rooms[i-1].x, cy=rooms[i-1].y;
+    const tx=rooms[i].x, ty=rooms[i].y;
+    while(cx!==tx){m[cy][cx]=T.STONE;cx+=cx<tx?1:-1;}
+    while(cy!==ty){m[cy][cx]=T.STONE;cy+=cy<ty?1:-1;}
+  }
+  
+  // Place stairs
+  const stairsUp={x:rooms[0].x, y:rooms[0].y};
+  const stairsDown=level<4?{x:rooms[rooms.length-1].x, y:rooms[rooms.length-1].y}:null;
+  
+  // Place loot
+  const loot=[];
+  const lootTable=MINE_LOOT_TABLES[Math.min(level, MINE_LOOT_TABLES.length-1)];
+  const lootCount=2+Math.floor(Math.random()*3);
+  for(let i=0;i<lootCount;i++){
+    const room=rooms[1+Math.floor(Math.random()*(rooms.length-1))];
+    const lx=room.x+Math.floor(Math.random()*3)-1;
+    const ly=room.y+Math.floor(Math.random()*2)-1;
+    if(m[ly]&&m[ly][lx]===T.STONE){
+      loot.push({x:lx,y:ly,id:lootTable[Math.floor(Math.random()*lootTable.length)]});
+    }
+  }
+  
+  // Place enemies
+  const enemies=[];
+  const enemyCount=1+level+Math.floor(Math.random()*2);
+  const enemyTypes=level<2?['malware_bot']:level<3?['malware_bot','script_kiddie']:level<4?['script_kiddie','ransomware']:['ransomware'];
+  for(let i=0;i<enemyCount;i++){
+    const room=rooms[1+Math.floor(Math.random()*(rooms.length-1))];
+    const ex=room.x+Math.floor(Math.random()*3)-1;
+    const ey=room.y+Math.floor(Math.random()*2)-1;
+    if(m[ey]&&m[ey][ex]===T.STONE){
+      const type=enemyTypes[Math.floor(Math.random()*enemyTypes.length)];
+      enemies.push({x:ex,y:ey,type,hp:MINE_ENEMIES[type].hp,alive:true});
+    }
+  }
+  // Boss on level 5
+  if(level>=4&&rooms.length>2){
+    const bossRoom=rooms[rooms.length-1];
+    enemies.push({x:bossRoom.x,y:bossRoom.y,type:'pool_operator',hp:MINE_ENEMIES.pool_operator.hp,alive:true});
+  }
+  
+  return {map:m,w,h,enemies,loot,stairsUp,stairsDown,rooms};
+}
+
+function enterMine(){
+  mineReturnX=player.x;mineReturnY=player.y;
+  mineLevel=0;
+  startTransition('fadeOut',0.5,()=>{
+    mineFloor=generateMineFloor(mineLevel);
+    player.x=mineFloor.stairsUp.x*TILE+8;
+    player.y=mineFloor.stairsUp.y*TILE+8;
+    cam.x=player.x*SCALE-canvas.width/2;
+    cam.y=player.y*SCALE-canvas.height/2;
+    startTransition('fadeIn',0.5,null);
+    notify('⛏️ Entered the Abandoned Data Center — Level '+(mineLevel+1),3);
+  });
+}
+
+function exitMine(){
+  startTransition('fadeOut',0.4,()=>{
+    mineFloor=null;combat=null;
+    player.x=mineReturnX;player.y=mineReturnY;
+    cam.x=player.x*SCALE-canvas.width/2;
+    cam.y=player.y*SCALE-canvas.height/2;
+    startTransition('fadeIn',0.4,null);
+    notify('Exited the mines.',2);
+  });
+}
+
+function goDeeper(){
+  mineLevel++;
+  startTransition('fadeOut',0.3,()=>{
+    mineFloor=generateMineFloor(mineLevel);
+    player.x=mineFloor.stairsUp.x*TILE+8;
+    player.y=mineFloor.stairsUp.y*TILE+8;
+    cam.x=player.x*SCALE-canvas.width/2;
+    cam.y=player.y*SCALE-canvas.height/2;
+    startTransition('fadeIn',0.3,null);
+    notify('⛏️ Descended to Level '+(mineLevel+1)+(mineLevel>=4?' — THE BOSS AWAITS':''),3);
+  });
+}
+
+function startCombat(enemy){
+  const info=MINE_ENEMIES[enemy.type];
+  const pMaxHp=50+skills.mining.level*10;
+  combat={
+    enemy:enemy,enemyType:enemy.type,
+    enemyHp:enemy.hp,enemyMaxHp:info.hp,
+    playerHp:pMaxHp,playerMaxHp:pMaxHp,
+    log:['⚔️ '+info.name+' attacks! '+info.desc],
+    turn:'player',
+  };
+  sfx.error(); // alert sound
+}
+
+function playerAttack(){
+  if(!combat||combat.turn!=='player')return;
+  const pAtk=10+skills.mining.level*3+(hasItem('pickaxe')?5:0);
+  const dmg=pAtk+Math.floor(Math.random()*5);
+  combat.enemyHp-=dmg;
+  combat.log.push('You deal '+dmg+' damage!');
+  sfx.repair();
+  if(combat.enemyHp<=0){
+    // Enemy defeated
+    const info=MINE_ENEMIES[combat.enemyType];
+    combat.log.push('💥 '+info.name+' defeated!');
+    if(info.loot)addItem(info.loot);
+    addXP('mining',info.xp);
+    notify('💥 Defeated '+info.name+'! +'+info.xp+' mining XP',3);
+    // Remove from floor
+    combat.enemy.alive=false;
+    combat=null;
+    sfx.block();
+    return;
+  }
+  // Enemy turn
+  combat.turn='enemy';
+  setTimeout(()=>{
+    if(!combat)return;
+    const info=MINE_ENEMIES[combat.enemyType];
+    const eDmg=info.atk+Math.floor(Math.random()*4);
+    combat.playerHp-=eDmg;
+    combat.log.push(info.icon+' deals '+eDmg+' damage!');
+    sfx.error();
+    if(combat.playerHp<=0){
+      // Player defeated
+      combat.log.push('💀 You were defeated!');
+      notify('💀 Defeated! Retreating from the mines...',3);
+      setTimeout(()=>{combat=null;exitMine();player.energy=Math.max(10,player.energy-30);},1500);
+      return;
+    }
+    combat.turn='player';
+  },600);
+}
 const INTERIOR_MAPS = {}; // generated once, keyed by building type
 
 const INTRO_SLIDES = [
@@ -1056,6 +1242,9 @@ function generateMap() {
   // Bitcoin graffiti / easter eggs
   decor.push({ x: homeX+20, y: homeY+5, type: 'sign', text: "21M" });
   decor.push({ x: homeX-8, y: homeY-8, type: 'sign', text: "HODL" });
+  // Mine entrance in the mountains
+  decor.push({ x: 50, y: 6, type: 'mine_entrance' });
+  decor.push({ x: 50, y: 5, type: 'sign', text: '⛏️ Abandoned Data Center' });
   
   // ---- VILLAGE DETAILS — Make the world feel lived-in ----
   // Lamp posts along main road
@@ -1336,9 +1525,9 @@ function drawPath(x1, y1, x2, y2, width) {
 
 function setT(x,y,t){if(y>=0&&y<MAP_H&&x>=0&&x<MAP_W)map[y][x]=t;}
 function isSolid(tx,ty){
-  const m=interior?interior.map:map;
-  const mw=interior?interior.w:MAP_W;
-  const mh=interior?interior.h:MAP_H;
+  const m=mineFloor?mineFloor.map:interior?interior.map:map;
+  const mw=mineFloor?mineFloor.w:interior?interior.w:MAP_W;
+  const mh=mineFloor?mineFloor.h:interior?interior.h:MAP_H;
   if(tx<0||ty<0||tx>=mw||ty>=mh)return true;
   if(SOLID.has(m[ty][tx]))return true;
   if(!interior&&fences.some(f=>f.x===tx&&f.y===ty))return true;
@@ -1906,7 +2095,7 @@ const cam = {x:0,y:0};
 // ============================================================
 // SAVE / LOAD
 // ============================================================
-function saveGame(){try{localStorage.setItem('sv_save',JSON.stringify({v:8,p:{x:player.x,y:player.y,w:player.wallet,te:player.totalEarned,e:player.energy},inv:inv.map(s=>s?{id:s.id,q:s.qty}:null),ss:selSlot,rigs:rigs.map(r=>({x:r.x,y:r.y,t:r.tier,p:r.powered,tp:r.temp,d:r.dur,m:r.mined,int:r.interior||null})),placed:placed.map(i=>({x:i.x,y:i.y,t:i.type})),fences:[...fences],econ:{...econ},time:{...time},pwr:{p:pwr.panels,b:pwr.batts},obj:objectives.map(o=>o.done),tut:tutorialDone,skills,crops:crops.map(c=>({x:c.x,y:c.y,type:c.type,dayAge:c.dayAge,stage:c.stage})),rels:relationships,citadelTier,animals:animals.map(a=>({x:a.x,y:a.y,t:a.type,hx:a.homeX,hy:a.homeY,hp:a.happiness,fed:a.fed,dsp:a.daysSinceProd,pr:a.prodReady,dir:a.dir})),weather:{c:weather.current},chest:chestInv.map(s=>s?{id:s.id,q:s.qty}:null),fw:foundWords,qp:questProgress,qj:questJournal,se:STORY_EVENTS.map(e=>e.fired)}));notify('💾 Saved!',2);sfx.buy();}catch(e){notify('❌ Save failed!',2);}}
+function saveGame(){try{localStorage.setItem('sv_save',JSON.stringify({v:8,p:{x:player.x,y:player.y,w:player.wallet,te:player.totalEarned,e:player.energy},inv:inv.map(s=>s?{id:s.id,q:s.qty}:null),ss:selSlot,rigs:rigs.map(r=>({x:r.x,y:r.y,t:r.tier,p:r.powered,tp:r.temp,d:r.dur,m:r.mined,int:r.interior||null})),placed:placed.map(i=>({x:i.x,y:i.y,t:i.type})),fences:[...fences],econ:{...econ},time:{...time},pwr:{p:pwr.panels,b:pwr.batts},obj:objectives.map(o=>o.done),tut:tutorialDone,skills,crops:crops.map(c=>({x:c.x,y:c.y,type:c.type,dayAge:c.dayAge,stage:c.stage})),rels:relationships,citadelTier,animals:animals.map(a=>({x:a.x,y:a.y,t:a.type,hx:a.homeX,hy:a.homeY,hp:a.happiness,fed:a.fed,dsp:a.daysSinceProd,pr:a.prodReady,dir:a.dir})),weather:{c:weather.current},chest:chestInv.map(s=>s?{id:s.id,q:s.qty}:null),fw:foundWords,qp:questProgress,qj:questJournal,se:STORY_EVENTS.map(e=>e.fired),ml:mineLevel}));notify('💾 Saved!',2);sfx.buy();}catch(e){notify('❌ Save failed!',2);}}
 function loadGame(){try{const d=JSON.parse(localStorage.getItem('sv_save'));if(!d)return notify('No save found!',2),false;player.x=d.p.x;player.y=d.p.y;player.wallet=d.p.w;player.totalEarned=d.p.te;player.energy=d.p.e||100;inv.length=0;d.inv.forEach(s=>inv.push(s?{id:s.id,qty:s.q}:null));selSlot=d.ss||0;rigs.length=0;d.rigs.forEach(r=>{const ri=new Rig(r.x,r.y,r.t);ri.powered=r.p;ri.temp=r.tp;ri.dur=r.d;ri.mined=r.m;ri.interior=r.int||null;rigs.push(ri);});placed.length=0;(d.placed||[]).forEach(i=>placed.push(i));Object.assign(econ,d.econ);Object.assign(time,d.time);pwr.panels=d.pwr?.p||[];pwr.batts=d.pwr?.b||[];if(d.obj)d.obj.forEach((done,i)=>{if(objectives[i])objectives[i].done=done;});tutorialDone=d.tut||false;
     if(d.skills)Object.assign(skills,d.skills);
     crops.length=0;if(d.crops)d.crops.forEach(c=>crops.push(c));
@@ -2303,7 +2492,7 @@ function update(dt) {
     }else if(shopOpen){shopOpen=false;sfx.menuClose();}
   }
   if(jp['i']||jp['tab']){if(!shopOpen){invOpen=!invOpen;invOpen?sfx.menuOpen():sfx.menuClose();}}
-  if(jp['escape']){if(pauseOpen){pauseOpen=false;sfx.menuClose();}else if(craftOpen){craftOpen=false;sfx.menuClose();}else if(chestOpen){chestOpen=false;sfx.menuClose();}else if(shopOpen){shopOpen=false;sfx.menuClose();}else if(citadelMenuOpen){citadelMenuOpen=false;sfx.menuClose();}else if(invOpen){invOpen=false;sfx.menuClose();}else if(dlg){if(!dlg.done){dlg.displayedChars=dlg.fullText.length;dlg.done=true;}else{dlg=null;}}else if(showObjectives)showObjectives=false;else if(showControls)showControls=false;else if(showSkills)showSkills=false;else if(showJournal)showJournal=false;else{pauseOpen=true;pauseCur=0;sfx.menuOpen();}}
+  if(jp['escape']){if(combat){combat=null;notify('🏃 Fled from combat!',2);sfx.menuClose();}else if(pauseOpen){pauseOpen=false;sfx.menuClose();}else if(craftOpen){craftOpen=false;sfx.menuClose();}else if(chestOpen){chestOpen=false;sfx.menuClose();}else if(shopOpen){shopOpen=false;sfx.menuClose();}else if(citadelMenuOpen){citadelMenuOpen=false;sfx.menuClose();}else if(invOpen){invOpen=false;sfx.menuClose();}else if(dlg){if(!dlg.done){dlg.displayedChars=dlg.fullText.length;dlg.done=true;}else{dlg=null;}}else if(showObjectives)showObjectives=false;else if(showControls)showControls=false;else if(showSkills)showSkills=false;else if(showJournal)showJournal=false;else{pauseOpen=true;pauseCur=0;sfx.menuOpen();}}
   if(jp['p'])saveGame();if(jp['l'])loadGame();
   for(let n=0;n<=9;n++)if(jp[n.toString()])selSlot=n===0?9:n-1;
   
@@ -2370,6 +2559,25 @@ function update(dt) {
             sfx.block();
           }
           decor.splice(i,1);completeObjective('find_seed');
+        }
+      }
+      // Mine: check enemy collision and loot pickup
+      if(mineFloor){
+        const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
+        // Enemy collision
+        for(const en of mineFloor.enemies){
+          if(en.alive&&en.x===ptx&&en.y===pty){startCombat(en);break;}
+        }
+        // Loot pickup
+        for(let i=mineFloor.loot.length-1;i>=0;i--){
+          const l=mineFloor.loot[i];
+          if(l.x===ptx&&l.y===pty){
+            if(addItem(l.id)){
+              const it=ITEMS[l.id];
+              notify(`Found ${it.icon} ${it.name}!`,2);sfx.coin();addXP('mining',5);
+              mineFloor.loot.splice(i,1);
+            }
+          }
         }
       }
     }
@@ -2456,7 +2664,24 @@ function update(dt) {
   intCd-=dt;
   if(jp['e']&&intCd<=0&&!shopOpen&&!invOpen&&!chestOpen){
     intCd=.25;
+    if(combat){playerAttack();for(const k in jp)jp[k]=false;return;}
     if(dlg){if(!dlg.done){dlg.displayedChars=dlg.fullText.length;dlg.done=true;}else{dlg=null;}}
+    // Mine entrance check
+    else if(!interior&&!mineFloor){
+      const mineEnt=decor.find(d=>d.type==='mine_entrance'&&Math.hypot(d.x*TILE+8-player.x,d.y*TILE+8-player.y)<TILE*2);
+      if(mineEnt){enterMine();for(const k in jp)jp[k]=false;return;}
+    }
+    // Mine navigation
+    else if(mineFloor){
+      const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
+      if(mineFloor.stairsUp&&ptx===mineFloor.stairsUp.x&&pty===mineFloor.stairsUp.y){
+        if(mineLevel===0){exitMine();}else{mineLevel--;mineFloor=generateMineFloor(mineLevel);player.x=mineFloor.stairsDown.x*TILE+8;player.y=mineFloor.stairsDown.y*TILE+8;notify('⬆️ Ascended to Level '+(mineLevel+1),2);}
+        for(const k in jp)jp[k]=false;return;
+      }
+      if(mineFloor.stairsDown&&ptx===mineFloor.stairsDown.x&&pty===mineFloor.stairsDown.y){
+        goDeeper();for(const k in jp)jp[k]=false;return;
+      }
+    }
     else if(interior && interior.type==='home'){
       // Sleep — must be near the bed (top-left area of home interior)
       const nearBed=player.y<4*TILE && player.x<5*TILE;
@@ -3414,6 +3639,27 @@ function drawDecor(d) {
     for(let i=0;i<5;i++)ctx.fillRect(sx+6+i*7,sy+ST/2+2,1,ST/2-6);
     // Binding
     ctx.fillStyle='#886622';ctx.fillRect(sx+4,sy+ST/2+8,ST-8,3);
+  }
+  else if(d.type==='mine_entrance'){
+    // Dark cave opening in the mountainside
+    ctx.fillStyle='#1A1A20';ctx.fillRect(sx+4,sy+8,ST-8,ST-8); // dark opening
+    ctx.fillStyle='#303038';ctx.fillRect(sx+2,sy+6,ST-4,4); // top arch
+    ctx.fillStyle='#404048';
+    ctx.fillRect(sx+2,sy+6,4,ST-6); // left pillar
+    ctx.fillRect(sx+ST-6,sy+6,4,ST-6); // right pillar
+    // Support beams
+    ctx.fillStyle='#5A3A1A';ctx.fillRect(sx+4,sy+6,ST-8,3); // top beam
+    ctx.fillRect(sx+5,sy+8,3,ST-10); ctx.fillRect(sx+ST-8,sy+8,3,ST-10);
+    // Lantern
+    ctx.fillStyle='#FFAA33';ctx.fillRect(sx+ST/2-2,sy+10,4,4);
+    ctx.fillStyle=`rgba(255,170,50,${0.15+Math.sin(t*3)*0.05})`;
+    ctx.beginPath();ctx.arc(sx+ST/2,sy+12,12,0,Math.PI*2);ctx.fill();
+    // Enter prompt
+    const pd=Math.hypot(d.x*TILE+8-player.x,d.y*TILE+8-player.y);
+    if(pd<TILE*3&&!interior&&!mineFloor){
+      ctx.fillStyle=C.orange;ctx.font=`bold 13px ${FONT}`;ctx.textAlign='center';
+      ctx.fillText('[E] Enter the Mines',sx+ST/2,sy-4);
+    }
   }
   else if(d.type==='sign'){
     ctx.fillStyle='#6A4A2A';ctx.fillRect(sx+ST/2-2,sy+ST/2,4,ST/2);
@@ -5590,12 +5836,134 @@ function drawNPCHearts(npc) {
   }
 }
 
+function drawMine(){
+  if(!mineFloor)return;
+  const f=mineFloor;
+  // Draw floor tiles
+  for(let y=0;y<f.h;y++)for(let x=0;x<f.w;x++){
+    const sx=x*ST-cam.x,sy=y*ST-cam.y;
+    if(sx>canvas.width+ST||sy>canvas.height+ST||sx<-ST||sy<-ST)continue;
+    if(f.map[y][x]===T.CLIFF){
+      ctx.fillStyle='#1A1A22';ctx.fillRect(sx,sy,ST,ST);
+      ctx.fillStyle='#222230';ctx.fillRect(sx+2,sy+2,ST-4,ST-4);
+    }else{
+      ctx.fillStyle='#3A3A44';ctx.fillRect(sx,sy,ST,ST);
+      ctx.fillStyle='#333340';ctx.fillRect(sx+4,sy+4,ST-8,2);
+    }
+  }
+  // Draw stairs
+  if(f.stairsUp){const sx=f.stairsUp.x*ST-cam.x,sy=f.stairsUp.y*ST-cam.y;
+    ctx.fillStyle='#4A4A55';ctx.fillRect(sx+4,sy+4,ST-8,ST-8);
+    ctx.fillStyle=C.green;ctx.font=`bold 16px ${FONT}`;ctx.textAlign='center';ctx.fillText('⬆️',sx+ST/2,sy+ST/2+5);
+    ctx.fillStyle='#AAA';ctx.font=`10px ${FONT}`;ctx.fillText(mineLevel===0?'EXIT':'UP',sx+ST/2,sy+ST-4);
+  }
+  if(f.stairsDown){const sx=f.stairsDown.x*ST-cam.x,sy=f.stairsDown.y*ST-cam.y;
+    ctx.fillStyle='#2A2A35';ctx.fillRect(sx+4,sy+4,ST-8,ST-8);
+    ctx.fillStyle=C.orange;ctx.font=`bold 16px ${FONT}`;ctx.textAlign='center';ctx.fillText('⬇️',sx+ST/2,sy+ST/2+5);
+    ctx.fillStyle='#AAA';ctx.font=`10px ${FONT}`;ctx.fillText('DEEPER',sx+ST/2,sy+ST-4);
+  }
+  // Draw loot
+  for(const l of f.loot){
+    const sx=l.x*ST-cam.x,sy=l.y*ST-cam.y;
+    const glow=0.5+Math.sin(performance.now()/400)*0.3;
+    ctx.fillStyle=`rgba(247,147,26,${glow*0.15})`;ctx.beginPath();ctx.arc(sx+ST/2,sy+ST/2,14,0,Math.PI*2);ctx.fill();
+    const it=ITEMS[l.id];
+    ctx.font='18px serif';ctx.textAlign='center';ctx.fillText(it?it.icon:'?',sx+ST/2,sy+ST/2+6);
+  }
+  // Draw enemies
+  for(const en of f.enemies){
+    if(!en.alive)continue;
+    const sx=en.x*ST-cam.x,sy=en.y*ST-cam.y;
+    const info=MINE_ENEMIES[en.type];
+    ctx.font='22px serif';ctx.textAlign='center';ctx.fillText(info.icon,sx+ST/2,sy+ST/2+8);
+    // HP bar
+    const hpPct=en.hp/info.hp;
+    ctx.fillStyle='#222';ctx.fillRect(sx+4,sy,ST-8,4);
+    ctx.fillStyle=hpPct>0.5?C.green:hpPct>0.25?C.orange:C.red;
+    ctx.fillRect(sx+4,sy,(ST-8)*hpPct,4);
+    if(info.boss){ctx.fillStyle=C.gold;ctx.font=`bold 10px ${FONT}`;ctx.fillText('BOSS',sx+ST/2,sy-4);}
+  }
+  // Draw player
+  drawPlayer();
+  // Dark overlay with torch light
+  ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Cut light circle around player
+  const px=player.x*SCALE-cam.x,py=player.y*SCALE-cam.y;
+  const lightR=120+Math.sin(performance.now()/300)*8;
+  ctx.save();ctx.globalCompositeOperation='destination-out';
+  const grad=ctx.createRadialGradient(px,py,0,px,py,lightR);
+  grad.addColorStop(0,'rgba(0,0,0,1)');grad.addColorStop(0.7,'rgba(0,0,0,0.8)');grad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=grad;ctx.beginPath();ctx.arc(px,py,lightR,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  // Warm torch glow
+  ctx.fillStyle=`rgba(255,180,80,0.06)`;ctx.beginPath();ctx.arc(px,py,lightR*0.6,0,Math.PI*2);ctx.fill();
+  // Level indicator
+  ctx.fillStyle=C.orange;ctx.font=`bold 16px ${FONT}`;ctx.textAlign='left';
+  ctx.fillText(`⛏️ Level ${mineLevel+1}/5`,12,30);
+  ctx.fillStyle='#CCC';ctx.font=`13px ${FONT}`;
+  ctx.fillText(`Enemies: ${f.enemies.filter(e=>e.alive).length} | Loot: ${f.loot.length}`,12,48);
+  ctx.fillText('E: interact/attack | Esc: flee/exit',12,canvas.height-12);
+}
+
+function drawCombat(){
+  if(!combat)return;
+  const info=MINE_ENEMIES[combat.enemyType];
+  // Dark overlay
+  ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,canvas.width,canvas.height);
+  const cx=canvas.width/2,cy=canvas.height/2;
+  // Panel
+  panel(cx-250,cy-150,500,300);
+  // Title
+  ctx.fillStyle=C.red;ctx.font=`bold 20px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText(`⚔️ COMBAT — ${info.name}`,cx,cy-120);
+  // Enemy
+  ctx.font='48px serif';ctx.fillText(info.icon,cx,cy-60);
+  // Enemy HP
+  ctx.fillStyle='#333';ctx.fillRect(cx-100,cy-30,200,16);
+  const ePct=Math.max(0,combat.enemyHp/combat.enemyMaxHp);
+  ctx.fillStyle=ePct>0.5?C.red:C.orange;ctx.fillRect(cx-100,cy-30,200*ePct,16);
+  ctx.fillStyle=C.white;ctx.font=`bold 12px ${FONT}`;ctx.fillText(`${Math.max(0,combat.enemyHp)}/${combat.enemyMaxHp} HP`,cx,cy-18);
+  // Player HP
+  ctx.fillStyle=C.orange;ctx.font=`14px ${FONT}`;ctx.fillText('YOUR HP',cx,cy+10);
+  ctx.fillStyle='#333';ctx.fillRect(cx-100,cy+16,200,16);
+  const pPct=Math.max(0,combat.playerHp/combat.playerMaxHp);
+  ctx.fillStyle=pPct>0.5?C.green:pPct>0.25?C.orange:C.red;ctx.fillRect(cx-100,cy+16,200*pPct,16);
+  ctx.fillStyle=C.white;ctx.font=`bold 12px ${FONT}`;ctx.fillText(`${Math.max(0,combat.playerHp)}/${combat.playerMaxHp} HP`,cx,cy+28);
+  // Combat log
+  ctx.textAlign='left';ctx.font=`12px ${FONT}`;
+  const logShow=combat.log.slice(-4);
+  logShow.forEach((msg,i)=>{
+    ctx.fillStyle=i===logShow.length-1?C.white:'#888';
+    ctx.fillText(msg,cx-220,cy+60+i*18);
+  });
+  // Actions
+  ctx.textAlign='center';
+  if(combat.turn==='player'){
+    ctx.fillStyle=C.green;ctx.font=`bold 16px ${FONT}`;
+    ctx.fillText('⚔️ [E] ATTACK',cx-80,cy+130);
+    ctx.fillStyle=C.gray;
+    ctx.fillText('🏃 [Esc] FLEE',cx+80,cy+130);
+  }else{
+    ctx.fillStyle='#666';ctx.font=`bold 14px ${FONT}`;
+    ctx.fillText('Enemy attacking...',cx,cy+130);
+  }
+}
+
 function draw(){
   // Reset render state at frame start (#67 globalAlpha leak, #68 shadowBlur leak)
   ctx.globalAlpha=1;ctx.shadowBlur=0;ctx.shadowColor='transparent';
   if(gameState==='intro'){drawIntro();ctx.globalAlpha=1;ctx.shadowBlur=0;return;}
   
   ctx.fillStyle='#0a0a0a';ctx.fillRect(0,0,canvas.width,canvas.height);
+  
+  // ---- MINE RENDERING ----
+  if(mineFloor){
+    drawMine();
+    drawHUD();
+    if(combat) drawCombat();
+    if(transition){const p=transition.timer/transition.duration;const a=transition.type==='fadeOut'?p:1-p;ctx.fillStyle='rgba(0,0,0,'+Math.min(1,a)+')';ctx.fillRect(0,0,canvas.width,canvas.height);}
+    return;
+  }
   
   const activeMap = interior ? interior.map : map;
   const mapW = interior ? interior.w : MAP_W;
