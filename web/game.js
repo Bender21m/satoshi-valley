@@ -2561,17 +2561,40 @@ function update(dt) {
           decor.splice(i,1);completeObjective('find_seed');
         }
       }
-      // Mine: check enemy collision and loot pickup
+      // Mine: enemy AI + loot pickup
       if(mineFloor){
         const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
-        // Enemy collision
+        // Enemy AI — move toward player and attack on contact
         for(const en of mineFloor.enemies){
-          if(en.alive&&en.x===ptx&&en.y===pty){startCombat(en);break;}
+          if(!en.alive)continue;
+          en._mt=(en._mt||0)+dt;
+          const dist=Math.hypot(en.x-ptx,en.y-pty);
+          // Chase player if within 5 tiles
+          if(dist<5&&en._mt>0.8){
+            en._mt=0;
+            const dx=Math.sign(ptx-en.x),dy=Math.sign(pty-en.y);
+            const nx=en.x+dx,ny=en.y+dy;
+            if(mineFloor.map[ny]&&mineFloor.map[ny][nx]!==T.CLIFF&&!(nx===ptx&&ny===pty)){
+              en.x=nx;en.y=ny;
+            }
+          }
+          // Attack player on contact
+          if(en.x===ptx&&en.y===pty){
+            const info=MINE_ENEMIES[en.type];
+            const dmg=info.atk+Math.floor(Math.random()*3);
+            player.energy=Math.max(0,player.energy-dmg);
+            notify(`${info.icon} hits you for ${dmg}!`,1.5);
+            sfx.error();
+            // Push enemy back
+            en.x-=Math.sign(ptx-en.x)||1;en.y-=Math.sign(pty-en.y);
+            en.x=Math.max(1,Math.min(MINE_W-2,en.x));en.y=Math.max(1,Math.min(MINE_H-2,en.y));
+            if(player.energy<=0){notify('💀 Defeated! Retreating...',3);setTimeout(()=>exitMine(),1000);player.energy=15;}
+          }
         }
-        // Loot pickup
+        // Loot pickup (proximity)
         for(let i=mineFloor.loot.length-1;i>=0;i--){
           const l=mineFloor.loot[i];
-          if(l.x===ptx&&l.y===pty){
+          if(Math.abs(l.x-ptx)<=1&&Math.abs(l.y-pty)<=1){
             if(addItem(l.id)){
               const it=ITEMS[l.id];
               notify(`Found ${it.icon} ${it.name}!`,2);sfx.coin();addXP('mining',5);
@@ -2664,22 +2687,46 @@ function update(dt) {
   intCd-=dt;
   if(jp['e']&&intCd<=0&&!shopOpen&&!invOpen&&!chestOpen){
     intCd=.25;
-    if(combat){playerAttack();for(const k in jp)jp[k]=false;return;}
+    // Combat is now action-based (handled in mine navigation E press above)
     if(dlg){if(!dlg.done){dlg.displayedChars=dlg.fullText.length;dlg.done=true;}else{dlg=null;}}
     // Mine entrance check
     else if(!interior&&!mineFloor){
       const mineEnt=decor.find(d=>d.type==='mine_entrance'&&Math.hypot(d.x*TILE+8-player.x,d.y*TILE+8-player.y)<TILE*2);
       if(mineEnt){enterMine();for(const k in jp)jp[k]=false;return;}
     }
-    // Mine navigation
+    // Mine navigation — stairs proximity check (within 1 tile)
     else if(mineFloor){
       const ptx=Math.floor(player.x/TILE),pty=Math.floor(player.y/TILE);
-      if(mineFloor.stairsUp&&ptx===mineFloor.stairsUp.x&&pty===mineFloor.stairsUp.y){
-        if(mineLevel===0){exitMine();}else{mineLevel--;mineFloor=generateMineFloor(mineLevel);player.x=mineFloor.stairsDown.x*TILE+8;player.y=mineFloor.stairsDown.y*TILE+8;notify('⬆️ Ascended to Level '+(mineLevel+1),2);}
+      // Exit / go up
+      if(mineFloor.stairsUp&&Math.abs(ptx-mineFloor.stairsUp.x)<=1&&Math.abs(pty-mineFloor.stairsUp.y)<=1){
+        if(mineLevel===0){exitMine();}else{mineLevel--;startTransition('fadeOut',0.3,()=>{mineFloor=generateMineFloor(mineLevel);player.x=(mineFloor.stairsDown||mineFloor.stairsUp).x*TILE+8;player.y=(mineFloor.stairsDown||mineFloor.stairsUp).y*TILE+8;cam.x=player.x*SCALE-canvas.width/2;cam.y=player.y*SCALE-canvas.height/2;startTransition('fadeIn',0.3,null);notify('⬆️ Level '+(mineLevel+1),2);});}
         for(const k in jp)jp[k]=false;return;
       }
-      if(mineFloor.stairsDown&&ptx===mineFloor.stairsDown.x&&pty===mineFloor.stairsDown.y){
+      // Go deeper
+      if(mineFloor.stairsDown&&Math.abs(ptx-mineFloor.stairsDown.x)<=1&&Math.abs(pty-mineFloor.stairsDown.y)<=1){
         goDeeper();for(const k in jp)jp[k]=false;return;
+      }
+      // Attack nearest enemy in range (action combat)
+      for(const en of mineFloor.enemies){
+        if(en.alive&&Math.hypot(en.x*TILE+8-player.x,en.y*TILE+8-player.y)<TILE*2){
+          const info=MINE_ENEMIES[en.type];
+          const pAtk=10+skills.mining.level*3+(hasItem('pickaxe')?5:0);
+          const dmg=pAtk+Math.floor(Math.random()*5);
+          en.hp-=dmg;
+          // Knockback
+          en.x+=Math.sign(en.x*TILE-player.x);en.y+=Math.sign(en.y*TILE-player.y);
+          en.x=Math.max(1,Math.min(MINE_W-2,en.x));en.y=Math.max(1,Math.min(MINE_H-2,en.y));
+          sfx.repair();
+          notify(`⚔️ Hit ${info.icon} for ${dmg}!`,1);
+          if(en.hp<=0){
+            en.alive=false;
+            if(info.loot)addItem(info.loot);
+            addXP('mining',info.xp);
+            notify(`💥 Defeated ${info.name}! +${info.xp} XP`,3,info.boss);
+            sfx.block();
+          }
+          for(const k in jp)jp[k]=false;return;
+        }
       }
     }
     else if(interior && interior.type==='home'){
@@ -5844,11 +5891,23 @@ function drawMine(){
     const sx=x*ST-cam.x,sy=y*ST-cam.y;
     if(sx>canvas.width+ST||sy>canvas.height+ST||sx<-ST||sy<-ST)continue;
     if(f.map[y][x]===T.CLIFF){
-      ctx.fillStyle='#1A1A22';ctx.fillRect(sx,sy,ST,ST);
-      ctx.fillStyle='#222230';ctx.fillRect(sx+2,sy+2,ST-4,ST-4);
+      // Dark concrete walls
+      ctx.fillStyle='#18181E';ctx.fillRect(sx,sy,ST,ST);
+      ctx.fillStyle='#1E1E26';ctx.fillRect(sx+2,sy+2,ST-4,ST-4);
+      // Random cracks
+      const cs=(x*17+y*31)%13;
+      if(cs<3){ctx.fillStyle='#141418';ctx.fillRect(sx+8+cs*6,sy+4,1,ST-8);}
+      if(cs>9){ctx.fillStyle='#141418';ctx.fillRect(sx+4,sy+10+cs%4*6,ST-8,1);}
     }else{
-      ctx.fillStyle='#3A3A44';ctx.fillRect(sx,sy,ST,ST);
-      ctx.fillStyle='#333340';ctx.fillRect(sx+4,sy+4,ST-8,2);
+      // Data center floor — industrial tiles
+      ctx.fillStyle='#34343E';ctx.fillRect(sx,sy,ST,ST);
+      // Floor tile grid
+      ctx.fillStyle='#2E2E38';ctx.fillRect(sx,sy,ST,1);ctx.fillRect(sx,sy,1,ST);
+      // Random floor detail (cables, debris)
+      const fs=(x*23+y*7)%19;
+      if(fs<2){ctx.fillStyle='#44444E';ctx.fillRect(sx+6,sy+ST/2-1,ST-12,2);} // cable
+      if(fs===5){ctx.fillStyle='#2A2A34';ctx.beginPath();ctx.arc(sx+ST/2,sy+ST/2,4,0,Math.PI*2);ctx.fill();} // floor vent
+      if(fs===10){ctx.fillStyle='#404048';ctx.fillRect(sx+10,sy+10,8,6);} // debris
     }
   }
   // Draw stairs
@@ -5885,11 +5944,11 @@ function drawMine(){
   }
   // Draw player
   drawPlayer();
-  // Dark overlay with torch light
-  ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,canvas.width,canvas.height);
+  // Dark overlay with torch light — generous visibility
+  ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(0,0,canvas.width,canvas.height);
   // Cut light circle around player
   const px=player.x*SCALE-cam.x,py=player.y*SCALE-cam.y;
-  const lightR=120+Math.sin(performance.now()/300)*8;
+  const lightR=200+Math.sin(performance.now()/300)*12; // bigger light
   ctx.save();ctx.globalCompositeOperation='destination-out';
   const grad=ctx.createRadialGradient(px,py,0,px,py,lightR);
   grad.addColorStop(0,'rgba(0,0,0,1)');grad.addColorStop(0.7,'rgba(0,0,0,0.8)');grad.addColorStop(1,'rgba(0,0,0,0)');
@@ -5898,11 +5957,22 @@ function drawMine(){
   // Warm torch glow
   ctx.fillStyle=`rgba(255,180,80,0.06)`;ctx.beginPath();ctx.arc(px,py,lightR*0.6,0,Math.PI*2);ctx.fill();
   // Level indicator
+  // Mine HUD
+  ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(8,8,220,70);
   ctx.fillStyle=C.orange;ctx.font=`bold 16px ${FONT}`;ctx.textAlign='left';
-  ctx.fillText(`⛏️ Level ${mineLevel+1}/5`,12,30);
+  ctx.fillText(`⛏️ Data Center — Level ${mineLevel+1}/5`,16,28);
   ctx.fillStyle='#CCC';ctx.font=`13px ${FONT}`;
-  ctx.fillText(`Enemies: ${f.enemies.filter(e=>e.alive).length} | Loot: ${f.loot.length}`,12,48);
-  ctx.fillText('E: interact/attack | Esc: flee/exit',12,canvas.height-12);
+  ctx.fillText(`Enemies: ${f.enemies.filter(e=>e.alive).length} | Loot: ${f.loot.length}`,16,46);
+  // Energy as HP in mines
+  ctx.fillStyle='#333';ctx.fillRect(16,54,180,10);
+  ctx.fillStyle=player.energy>30?C.green:player.energy>10?C.orange:C.red;
+  ctx.fillRect(16,54,180*(player.energy/player.maxEnergy),10);
+  ctx.fillStyle=C.white;ctx.font=`bold 10px ${FONT}`;
+  ctx.fillText(`HP: ${Math.floor(player.energy)}/${player.maxEnergy}`,16,63);
+  // Controls
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(0,canvas.height-22,canvas.width,22);
+  ctx.fillStyle='#AAA';ctx.font=`12px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText('WASD: Move | E: Attack/Use Stairs | Esc: Exit Mine',canvas.width/2,canvas.height-7);
 }
 
 function drawCombat(){
@@ -5960,7 +6030,6 @@ function draw(){
   if(mineFloor){
     drawMine();
     drawHUD();
-    if(combat) drawCombat();
     if(transition){const p=transition.timer/transition.duration;const a=transition.type==='fadeOut'?p:1-p;ctx.fillStyle='rgba(0,0,0,'+Math.min(1,a)+')';ctx.fillRect(0,0,canvas.width,canvas.height);}
     return;
   }
