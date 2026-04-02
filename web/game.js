@@ -150,6 +150,32 @@ canvas.addEventListener('click', e => {
 
 canvas.addEventListener('click', e => {
   if(e.shiftKey)return; // Shift+click handled by placement handler above
+  // Mine combat: left-click = melee attack toward mouse
+  if(mineFloor&&gameState==='playing'&&!shopOpen&&!invOpen&&!dlg&&!combat){
+    const wx=(e.clientX+cam.x)/SCALE, wy=(e.clientY+cam.y)/SCALE;
+    // Find nearest enemy near click point
+    let closest=null,closestDist=TILE*3;
+    for(const en of mineFloor.enemies){
+      if(!en.alive)continue;
+      const d=Math.hypot(en.x*TILE+8-wx,en.y*TILE+8-wy);
+      if(d<closestDist){closest=en;closestDist=d;}
+    }
+    // Also check if enemy is near player (melee range)
+    if(closest&&Math.hypot(closest.x*TILE+8-player.x,closest.y*TILE+8-player.y)<TILE*2.5){
+      playerSwing=0.3;
+      const info=MINE_ENEMIES[closest.type];
+      const pAtk=10+skills.mining.level*3+(hasItem('pickaxe')?8:0);
+      const dmg=pAtk+Math.floor(Math.random()*6);
+      closest.hp-=dmg;closest._hitFlash=0.2;
+      const kbx=Math.sign(closest.x*TILE-player.x),kby=Math.sign(closest.y*TILE-player.y);
+      closest.x+=kbx;closest.y+=kby;
+      closest.x=Math.max(1,Math.min(MINE_W-2,closest.x));closest.y=Math.max(1,Math.min(MINE_H-2,closest.y));
+      damageNumbers.push({x:closest.x*ST+ST/2,y:closest.y*ST,text:'-'+dmg,life:1.0,color:'#FFDD44'});
+      tone(300+Math.random()*200,.08,'square',.05);screenShake=0.1;
+      if(closest.hp<=0){closest.alive=false;if(info.loot)addItem(info.loot);addXP('mining',info.xp);notify('💥 '+info.name+' defeated! +'+info.xp+' XP',2,info.boss);sfx.block();}
+    }
+    return;
+  }
   if (gameState !== 'playing') {
     // Title menu click handling
     if (gameState === 'intro' && titleMenuOpen) {
@@ -2503,9 +2529,12 @@ function update(dt) {
     if(jp['1']&&skills.mining.level>=COMBAT_SKILLS.orangePill.unlockLevel&&skillCooldowns.orangePill<=0){
       skillCooldowns.orangePill=COMBAT_SKILLS.orangePill.cooldown;
       const spd=5;
+      // Aim toward mouse cursor
+      const aimX2=(mouseX+cam.x)/SCALE-player.x, aimY2=(mouseY+cam.y)/SCALE-player.y;
+      const aimD2=Math.sqrt(aimX2*aimX2+aimY2*aimY2)||1;
       projectiles.push({
         x:player.x,y:player.y,
-        vx:player.facing.x*spd*TILE,vy:player.facing.y*spd*TILE,
+        vx:(aimX2/aimD2)*spd*TILE,vy:(aimY2/aimD2)*spd*TILE,
         life:1.2,type:'orangePill',dmg:COMBAT_SKILLS.orangePill.dmg+skills.mining.level*2,
         trail:[],
       });
@@ -2673,8 +2702,15 @@ function update(dt) {
       else{dx=mdx/md;dy=mdy/md;}
     }
     player.moving=dx!==0||dy!==0;
+    // In mines: always face the mouse cursor for aiming
+    if(mineFloor){
+      const aimX=(mouseX+cam.x)/SCALE-player.x, aimY=(mouseY+cam.y)/SCALE-player.y;
+      const aimDist=Math.sqrt(aimX*aimX+aimY*aimY);
+      if(aimDist>2){player.facing={x:aimX/aimDist,y:aimY/aimDist};}
+    }
     if(player.moving){
-      const len=Math.sqrt(dx*dx+dy*dy);dx/=len;dy/=len;player.facing={x:dx,y:dy};
+      const len=Math.sqrt(dx*dx+dy*dy);dx/=len;dy/=len;
+      if(!mineFloor)player.facing={x:dx,y:dy}; // overworld: face movement direction
       const nx=player.x+dx*spd*dt,ny=player.y+dy*spd*dt;
       const r=5;
       if(!isSolid(Math.floor((nx-r)/TILE),Math.floor((player.y-r)/TILE))&&!isSolid(Math.floor((nx+r)/TILE),Math.floor((player.y+r)/TILE))&&!isSolid(Math.floor((nx-r)/TILE),Math.floor((player.y+r)/TILE))&&!isSolid(Math.floor((nx+r)/TILE),Math.floor((player.y-r)/TILE)))player.x=nx;
@@ -6259,6 +6295,20 @@ function drawMine(){
   
   // Warm glow around player (subtle)
   ctx.fillStyle='rgba(255,180,80,0.03)';ctx.beginPath();ctx.arc(px,py,150,0,Math.PI*2);ctx.fill();
+  
+  // Crosshair reticle at mouse position
+  ctx.strokeStyle='rgba(247,147,26,0.5)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(mouseX,mouseY,10,0,Math.PI*2);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(mouseX-15,mouseY);ctx.lineTo(mouseX-6,mouseY);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(mouseX+6,mouseY);ctx.lineTo(mouseX+15,mouseY);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(mouseX,mouseY-15);ctx.lineTo(mouseX,mouseY-6);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(mouseX,mouseY+6);ctx.lineTo(mouseX,mouseY+15);ctx.stroke();
+  ctx.fillStyle=C.orange;ctx.beginPath();ctx.arc(mouseX,mouseY,2,0,Math.PI*2);ctx.fill();
+  // Aim line from player to cursor
+  ctx.strokeStyle='rgba(247,147,26,0.12)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(mouseX,mouseY);ctx.stroke();
+  ctx.setLineDash([]);
+  
   // Level indicator
   // Mine HUD
   ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(8,8,220,70);
