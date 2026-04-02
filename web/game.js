@@ -106,7 +106,24 @@ canvas.addEventListener('mousemove', e => {
 });
 
 // Prevent right-click menu on canvas
-canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  // Right-click = Orange Pill skill in mines
+  if(mineFloor&&gameState==='playing'&&!shopOpen&&!invOpen&&!dlg){
+    if(skills.mining.level>=COMBAT_SKILLS.orangePill.unlockLevel&&skillCooldowns.orangePill<=0){
+      skillCooldowns.orangePill=COMBAT_SKILLS.orangePill.cooldown;
+      const wx=(e.clientX+cam.x)/SCALE,wy=(e.clientY+cam.y)/SCALE;
+      const aimX=wx-player.x,aimY=wy-player.y;
+      const aimD=Math.sqrt(aimX*aimX+aimY*aimY)||1;
+      const spd=5;
+      projectiles.push({x:player.x,y:player.y,vx:(aimX/aimD)*spd*TILE,vy:(aimY/aimD)*spd*TILE,life:1.2,type:'orangePill',dmg:COMBAT_SKILLS.orangePill.dmg+skills.mining.level*2,trail:[]});
+      tone(440,.1,'sine',.04);tone(660,.15,'sine',.03);
+      playerSwing=0.2;
+    } else if(skillCooldowns.orangePill>0){
+      notify('💊 Cooling down: '+skillCooldowns.orangePill.toFixed(1)+'s',1);
+    }
+  }
+});
 
 // Shift+Click to place selected item at mouse position
 canvas.addEventListener('click', e => {
@@ -150,29 +167,31 @@ canvas.addEventListener('click', e => {
 
 canvas.addEventListener('click', e => {
   if(e.shiftKey)return; // Shift+click handled by placement handler above
-  // Mine combat: left-click = melee attack toward mouse
+  // Mine combat: LEFT-CLICK = melee attack (Diablo-style)
   if(mineFloor&&gameState==='playing'&&!shopOpen&&!invOpen&&!dlg&&!combat){
     const wx=(e.clientX+cam.x)/SCALE, wy=(e.clientY+cam.y)/SCALE;
-    // Find nearest enemy near click point
-    let closest=null,closestDist=TILE*3;
+    // Find nearest enemy near click point (generous range)
+    let closest=null,closestDist=TILE*5;
     for(const en of mineFloor.enemies){
       if(!en.alive)continue;
       const d=Math.hypot(en.x*TILE+8-wx,en.y*TILE+8-wy);
       if(d<closestDist){closest=en;closestDist=d;}
     }
-    // Also check if enemy is near player (melee range)
-    if(closest&&Math.hypot(closest.x*TILE+8-player.x,closest.y*TILE+8-player.y)<TILE*2.5){
-      playerSwing=0.3;
-      const info=MINE_ENEMIES[closest.type];
-      const pAtk=10+skills.mining.level*3+(hasItem('pickaxe')?8:0);
-      const dmg=pAtk+Math.floor(Math.random()*6);
-      closest.hp-=dmg;closest._hitFlash=0.2;
-      const kbx=Math.sign(closest.x*TILE-player.x),kby=Math.sign(closest.y*TILE-player.y);
-      closest.x+=kbx;closest.y+=kby;
-      closest.x=Math.max(1,Math.min(MINE_W-2,closest.x));closest.y=Math.max(1,Math.min(MINE_H-2,closest.y));
-      damageNumbers.push({x:closest.x*ST+ST/2,y:closest.y*ST,text:'-'+dmg,life:1.0,color:'#FFDD44'});
-      tone(300+Math.random()*200,.08,'square',.05);screenShake=0.1;
-      if(closest.hp<=0){closest.alive=false;if(info.loot)addItem(info.loot);addXP('mining',info.xp);notify('💥 '+info.name+' defeated! +'+info.xp+' XP',2,info.boss);sfx.block();}
+    if(closest){
+      const distToPlayer=Math.hypot(closest.x*TILE+8-player.x,closest.y*TILE+8-player.y);
+      if(distToPlayer<TILE*2.5){
+        // In melee range — ATTACK!
+        mineAttackEnemy(closest);
+      } else {
+        // Out of range — walk toward enemy (auto-approach like Diablo)
+        mouseTarget={x:closest.x*TILE+8,y:closest.y*TILE+8};
+        mineAutoAttackTarget=closest; // will attack when in range
+      }
+    } else {
+      // Clicked empty space — move there
+      mouseTarget={x:wx,y:wy};
+      clickIndicator={x:wx,y:wy,life:0.8};
+      mineAutoAttackTarget=null;
     }
     return;
   }
@@ -615,6 +634,47 @@ let playerSwing = 0; // attack animation timer
 let screenShake = 0;
 let damageNumbers = []; // {x, y, text, life, color}
 let projectiles = []; // {x, y, vx, vy, life, type, dmg}
+let mineAutoAttackTarget = null; // auto-approach and attack
+let deathParticles = []; // {x, y, vx, vy, life, color, size}
+
+function mineAttackEnemy(en){
+  playerSwing=0.3;
+  const info=MINE_ENEMIES[en.type];
+  const pAtk=10+skills.mining.level*3+(hasItem('pickaxe')?8:0);
+  const dmg=pAtk+Math.floor(Math.random()*6);
+  en.hp-=dmg;en._hitFlash=0.2;
+  // Knockback
+  const kbx=Math.sign(en.x*TILE-player.x),kby=Math.sign(en.y*TILE-player.y);
+  en.x+=kbx;en.y+=kby;
+  en.x=Math.max(1,Math.min(MINE_W-2,en.x));en.y=Math.max(1,Math.min(MINE_H-2,en.y));
+  // Damage number
+  damageNumbers.push({x:en.x*ST+ST/2,y:en.y*ST,text:'-'+dmg,life:1.0,color:'#FFDD44'});
+  // Hit sound
+  tone(250+Math.random()*200,.06,'square',.05);tone(180,.04,'sawtooth',.03);
+  screenShake=0.08;
+  if(en.hp<=0){
+    en.alive=false;
+    const info2=MINE_ENEMIES[en.type];
+    // Death explosion particles!
+    for(let i=0;i<12;i++){
+      const angle=Math.random()*Math.PI*2;const spd=60+Math.random()*80;
+      deathParticles.push({x:en.x*ST+ST/2,y:en.y*ST+ST/2,vx:Math.cos(angle)*spd,vy:Math.sin(angle)*spd,life:0.6+Math.random()*0.4,color:info2.boss?'#FFD700':'#FF6644',size:3+Math.random()*3});
+    }
+    // Loot drop
+    if(info2.loot){
+      addItem(info2.loot);
+      // Loot sparkle
+      for(let i=0;i<6;i++){
+        deathParticles.push({x:en.x*ST+ST/2,y:en.y*ST+ST/2,vx:(Math.random()-0.5)*40,vy:-40-Math.random()*60,life:0.8+Math.random()*0.3,color:C.orange,size:2+Math.random()*2});
+      }
+    }
+    addXP('mining',info2.xp);
+    notify('💥 '+info2.name+' destroyed! +'+info2.xp+' XP',2,info2.boss);
+    sfx.block();
+    screenShake=0.2;
+    mineAutoAttackTarget=null;
+  }
+}
 let skillCooldowns = {orangePill:0, lightning:0, hashAttack:0};
 
 // ============================================================
@@ -2584,6 +2644,18 @@ function update(dt) {
       sfx.block();
       notify(`💥 51% ATTACK! ${hits} hit!`,3,true);
     }
+  }
+  
+  // Auto-attack: if walking toward a target enemy, attack when in range
+  if(mineFloor&&mineAutoAttackTarget&&mineAutoAttackTarget.alive){
+    const aDist=Math.hypot(mineAutoAttackTarget.x*TILE+8-player.x,mineAutoAttackTarget.y*TILE+8-player.y);
+    if(aDist<TILE*2.5&&playerSwing<=0){mineAttackEnemy(mineAutoAttackTarget);mouseTarget=null;}
+  } else { mineAutoAttackTarget=null; }
+  
+  // Update death particles
+  for(let i=deathParticles.length-1;i>=0;i--){
+    const dp=deathParticles[i];dp.life-=dt;dp.x+=dp.vx*dt;dp.y+=dp.vy*dt;dp.vy+=100*dt; // gravity
+    if(dp.life<=0)deathParticles.splice(i,1);
   }
   
   // Update projectiles
@@ -6258,6 +6330,14 @@ function drawMine(){
       }
     }
   }
+  
+  // Death particles (explosion + loot sparkle)
+  for(const dp of deathParticles){
+    ctx.globalAlpha=Math.min(1,dp.life*2);
+    ctx.fillStyle=dp.color;
+    ctx.beginPath();ctx.arc(dp.x-cam.x,dp.y-cam.y,dp.size*dp.life,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
   
   // Damage numbers
   for(const dn of damageNumbers){
