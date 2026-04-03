@@ -75,6 +75,85 @@ const TILE = 16, SCALE = 3, ST = TILE * SCALE;
 const MAP_W = 120, MAP_H = 90; // MUCH bigger world
 const FONT = '"Courier New", monospace';
 
+// ---- MOBILE DETECTION & TOUCH CONTROLS ----
+const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent) || ('ontouchstart' in window);
+const touch = {
+  // Virtual joystick state
+  joyActive: false, joyStartX: 0, joyStartY: 0, joyX: 0, joyY: 0, joyDx: 0, joyDy: 0,
+  // Action buttons
+  btnAttack: false, btnInteract: false, btnSkill1: false, btnSkill2: false, btnSkill3: false,
+  btnInventory: false, btnPause: false,
+  // Touch ID tracking
+  joyTouchId: null, actionTouchId: null,
+};
+const JOYSTICK_RADIUS = 50;
+const JOYSTICK_DEAD = 10;
+
+if (isMobile) {
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      // Left half = joystick
+      if (t.clientX < canvas.width * 0.4 && !touch.joyActive) {
+        touch.joyActive = true;
+        touch.joyStartX = t.clientX; touch.joyStartY = t.clientY;
+        touch.joyX = t.clientX; touch.joyY = t.clientY;
+        touch.joyTouchId = t.identifier;
+      }
+      // Right half = action area (tap = attack/interact)
+      else if (t.clientX >= canvas.width * 0.4) {
+        touch.actionTouchId = t.identifier;
+        // Check if tapped an action button
+        const bx = canvas.width - 80, by = canvas.height - 200;
+        if (Math.hypot(t.clientX - bx, t.clientY - by) < 35) { touch.btnAttack = true; jp['e'] = true; }
+        else if (Math.hypot(t.clientX - (bx - 70), t.clientY - (by + 20)) < 30) { touch.btnSkill1 = true; jp['1'] = true; }
+        else if (Math.hypot(t.clientX - (bx + 10), t.clientY - (by - 70)) < 30) { touch.btnSkill2 = true; jp['2'] = true; }
+        else if (Math.hypot(t.clientX - (bx + 70), t.clientY - (by + 20)) < 30) { touch.btnSkill3 = true; jp['3'] = true; }
+        // Top buttons
+        else if (t.clientY < 60 && t.clientX > canvas.width - 60) { touch.btnPause = true; jp['escape'] = true; }
+        else if (t.clientY < 60 && t.clientX > canvas.width - 120) { touch.btnInventory = true; jp['i'] = true; }
+        else {
+          // Tap = click at that position (interact/move)
+          mouseX = t.clientX; mouseY = t.clientY;
+          canvas.dispatchEvent(new MouseEvent('click', { clientX: t.clientX, clientY: t.clientY }));
+        }
+      }
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier === touch.joyTouchId) {
+        touch.joyX = t.clientX; touch.joyY = t.clientY;
+        const dx = touch.joyX - touch.joyStartX, dy = touch.joyY - touch.joyStartY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > JOYSTICK_DEAD) {
+          touch.joyDx = dx / dist; touch.joyDy = dy / dist;
+        } else {
+          touch.joyDx = 0; touch.joyDy = 0;
+        }
+      }
+      if (t.identifier === touch.actionTouchId) {
+        mouseX = t.clientX; mouseY = t.clientY;
+      }
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier === touch.joyTouchId) {
+        touch.joyActive = false; touch.joyDx = 0; touch.joyDy = 0; touch.joyTouchId = null;
+      }
+      if (t.identifier === touch.actionTouchId) {
+        touch.actionTouchId = null;
+        touch.btnAttack = false; touch.btnSkill1 = false; touch.btnSkill2 = false; touch.btnSkill3 = false;
+      }
+    }
+  }, { passive: false });
+}
+
 // ---- INPUT ----
 const keys = {}, jp = {};
 document.addEventListener('keydown', e => {
@@ -2765,6 +2844,8 @@ function update(dt) {
     let dx=0,dy=0;
     if(keys['w']||keys['arrowup'])dy-=1;if(keys['s']||keys['arrowdown'])dy+=1;
     if(keys['a']||keys['arrowleft'])dx-=1;if(keys['d']||keys['arrowright'])dx+=1;
+    // Mobile joystick input
+    if(touch.joyActive){dx+=touch.joyDx;dy+=touch.joyDy;}
     if(dx!==0||dy!==0) mouseTarget=null; // keyboard cancels mouse target
     // Mouse click-to-move: inject direction from target if no keyboard input
     if(!dx&&!dy&&mouseTarget){
@@ -5311,12 +5392,15 @@ function drawHUD(){
       if(sl.qty>1){ctx.fillStyle=C.white;ctx.font=`bold 12px ${FONT}`;ctx.fillText(sl.qty,x+hbW-8,hbY+hbH-4);}}
   }
   
+  // Mobile touch controls overlay
+  if(isMobile) drawTouchControls();
+  
   // Controls hint
   // Controls bar (always visible, readable)
   const cbY = canvas.height - 18;
   ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(0,cbY-4,canvas.width,22);
   ctx.fillStyle='#999';ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';
-  ctx.fillText('WASD:Move  E:Interact  R:Use/Plant  T:Craft  H:Harvest  I:Inventory  B:Shop  C:Citadel  O:Quests  K:Skills  M:Music  ?:Help  P:Save',canvas.width/2,cbY+8);
+  if(!isMobile) ctx.fillText('WASD:Move  E:Interact  R:Use/Plant  T:Craft  H:Harvest  I:Inventory  B:Shop  C:Citadel  O:Quests  K:Skills  M:Music  ?:Help  P:Save',canvas.width/2,cbY+8);
   
   // Energy
   const ebW=100,ebX=canvas.width-ebW-p-10,ebY=hbY-18;
@@ -6134,6 +6218,65 @@ function drawNPCHearts(npc) {
     ctx.font = '10px serif';
     ctx.fillText('♥', sx - 20 + i * 10, sy);
   }
+}
+
+function drawTouchControls(){
+  if(!isMobile)return;
+  ctx.globalAlpha=0.5;
+  
+  // Virtual joystick (left side)
+  const jx=touch.joyActive?touch.joyStartX:90, jy=touch.joyActive?touch.joyStartY:canvas.height-120;
+  // Outer ring
+  ctx.strokeStyle='rgba(247,147,26,0.4)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(jx,jy,JOYSTICK_RADIUS,0,Math.PI*2);ctx.stroke();
+  // Inner thumb
+  const thumbX=jx+(touch.joyActive?touch.joyDx*JOYSTICK_RADIUS*0.6:0);
+  const thumbY=jy+(touch.joyActive?touch.joyDy*JOYSTICK_RADIUS*0.6:0);
+  ctx.fillStyle='rgba(247,147,26,0.5)';
+  ctx.beginPath();ctx.arc(thumbX,thumbY,20,0,Math.PI*2);ctx.fill();
+  
+  // Action buttons (right side)
+  const bx=canvas.width-80, by=canvas.height-200;
+  
+  // Attack button (big, center)
+  ctx.fillStyle=touch.btnAttack?'rgba(247,147,26,0.6)':'rgba(247,147,26,0.25)';
+  ctx.beginPath();ctx.arc(bx,by,32,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(247,147,26,0.6)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(bx,by,32,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='#FFF';ctx.font=`bold 14px ${FONT}`;ctx.textAlign='center';
+  ctx.fillText('⚔️',bx,by+2);ctx.fillText('ATK',bx,by+16);
+  
+  // Skill 1 — Orange Pill (left of attack)
+  ctx.fillStyle=touch.btnSkill1?'rgba(247,147,26,0.6)':'rgba(100,60,20,0.3)';
+  ctx.beginPath();ctx.arc(bx-70,by+20,26,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#F90';ctx.font='16px serif';ctx.fillText('💊',bx-70,by+24);
+  
+  // Skill 2 — Lightning (above attack)
+  ctx.fillStyle=touch.btnSkill2?'rgba(255,221,68,0.6)':'rgba(100,100,30,0.3)';
+  ctx.beginPath();ctx.arc(bx+10,by-70,26,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#FF0';ctx.font='16px serif';ctx.fillText('⚡',bx+10,by-66);
+  
+  // Skill 3 — 51% Attack (right of attack)
+  ctx.fillStyle=touch.btnSkill3?'rgba(255,68,68,0.6)':'rgba(100,30,30,0.3)';
+  ctx.beginPath();ctx.arc(bx+70,by+20,26,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#F44';ctx.font='16px serif';ctx.fillText('💥',bx+70,by+24);
+  
+  // Top-right quick buttons
+  // Pause
+  ctx.fillStyle='rgba(80,80,80,0.4)';ctx.fillRect(canvas.width-55,8,45,35);
+  ctx.fillStyle='#AAA';ctx.font=`bold 11px ${FONT}`;ctx.textAlign='center';ctx.fillText('⏸',canvas.width-32,28);
+  // Inventory
+  ctx.fillStyle='rgba(80,80,80,0.4)';ctx.fillRect(canvas.width-110,8,50,35);
+  ctx.fillStyle='#AAA';ctx.fillText('📦',canvas.width-85,28);
+  
+  // Interact hint (bottom center)
+  if(!mineFloor){
+    ctx.fillStyle='rgba(0,0,0,0.4)';ctx.fillRect(canvas.width/2-40,canvas.height-55,80,30);
+    ctx.fillStyle=C.orange;ctx.font=`bold 12px ${FONT}`;ctx.textAlign='center';
+    ctx.fillText('TAP: Interact',canvas.width/2,canvas.height-36);
+  }
+  
+  ctx.globalAlpha=1;
 }
 
 function drawMine(){
